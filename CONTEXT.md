@@ -20,8 +20,12 @@ _Avoid_: batch, pipeline
 One execution of the queue, start to finish.
 _Avoid_: session (a session is a single agent's conversational context, scoped to one job)
 
+**Target repo**:
+The repo `overnight-runner` runs a queue against — `repo-path` on the CLI, defaulting to the current directory. Distinct from the runner's own repo, except when developing `overnight-runner` itself, where the two are the same and `jobs/`/`runs/` stay gitignored so dogfooding doesn't leak into the runner's own history.
+_Avoid_: repo (ambiguous between this and the runner's own repo), working repo
+
 **Base branch**:
-The branch the run itself started on — what you were on when you kicked off the run.
+The branch the run itself started on — what you were on when you kicked off the run, in the target repo.
 _Avoid_: main branch, target branch
 
 **Provider**:
