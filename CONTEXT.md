@@ -29,7 +29,7 @@ The runner's wrapper around invoking a specific provider's CLI, so the runner co
 _Avoid_: driver, plugin
 
 **OVERNIGHT_RESULT**:
-The machine-readable `PASS`/`BLOCKED` contract a skill emits at the end of a job, so the runner can decide what to do next without another LLM judging free text.
+The machine-readable `PASS`/`BLOCKED` contract a skill emits at the end of a job, so the runner can decide what to do next without another LLM judging free text. The provider adapter can also *synthesize* a `BLOCKED` result on the skill's behalf — when the process exits non-zero, times out, or never emits the line at all — so the runner always receives a normalized contract even when a job's own emission fails.
 _Avoid_: exit code, status (too generic — this is a specific emitted contract)
 
 **`implement-overnight`**:
