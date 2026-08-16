@@ -1,19 +1,20 @@
-'use strict';
+import path from 'node:path';
+import * as git from './git.ts';
+import { loadQueue } from './queue.ts';
+import type { Job } from './queue.ts';
+import { writeStatus } from './frontmatter.ts';
+import * as providers from './providers.ts';
+import * as isolation from './isolation.ts';
+import type { IsolationResult } from './isolation.ts';
+import * as runSummary from './runSummary.ts';
+import type { Run } from './runSummary.ts';
 
-const path = require('path');
-const git = require('./git');
-const { loadQueue } = require('./queue');
-const { writeStatus } = require('./frontmatter');
-const providers = require('./providers');
-const isolation = require('./isolation');
-const runSummary = require('./runSummary');
-
-function runId(date) {
-  const pad = (n) => String(n).padStart(2, '0');
+function runId(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}-${pad(date.getHours())}${pad(date.getMinutes())}`;
 }
 
-function safeShortRef(repoPath, ref) {
+function safeShortRef(repoPath: string, ref: string): string {
   try {
     return git.shortRef(repoPath, ref);
   } catch {
@@ -21,7 +22,10 @@ function safeShortRef(repoPath, ref) {
   }
 }
 
-async function run(repoPath, { defaultProvider, timeoutMs } = {}) {
+async function run(
+  repoPath: string,
+  { defaultProvider, timeoutMs }: { defaultProvider?: string; timeoutMs?: number } = {}
+): Promise<string> {
   const baseBranch = git.currentBranch(repoPath);
   const started = new Date();
   const id = runId(started);
@@ -30,7 +34,7 @@ async function run(repoPath, { defaultProvider, timeoutMs } = {}) {
 
   const jobs = loadQueue(repoPath);
 
-  const state = {
+  const state: Run = {
     runStatus: 'in-progress',
     started: started.toISOString(),
     baseBranch,
@@ -58,18 +62,25 @@ async function run(repoPath, { defaultProvider, timeoutMs } = {}) {
 
 // Runs one job to completion, mutating it in place with outcome/duration/etc.
 // Returns true if the run should stop early (an inline job came back BLOCKED).
-async function executeJob(repoPath, baseBranch, job, defaultProvider, timeoutMs, logsDir) {
+async function executeJob(
+  repoPath: string,
+  baseBranch: string,
+  job: Job,
+  defaultProvider: string | undefined,
+  timeoutMs: number | undefined,
+  logsDir: string
+): Promise<boolean> {
   const effectiveProvider = job.provider || defaultProvider;
   job.providerUsed = effectiveProvider;
 
-  let setupResult;
+  let setupResult: IsolationResult;
   try {
     setupResult = isolation.setup(repoPath, job, baseBranch);
   } catch (err) {
-    setupResult = { blocked: `unexpected error during isolation setup: ${err.message}` };
+    setupResult = { blocked: `unexpected error during isolation setup: ${(err as Error).message}` };
   }
 
-  if (setupResult.blocked) {
+  if (typeof setupResult.blocked === 'string') {
     job.outcome = 'BLOCKED';
     job.notes = setupResult.blocked;
     job.status = 'blocked';
@@ -99,11 +110,11 @@ async function executeJob(repoPath, baseBranch, job, defaultProvider, timeoutMs,
     // write this job's status; the runner must, same as the isolation-blocked case.
     isolation.teardown(repoPath, setupResult);
     job.outcome = 'BLOCKED';
-    job.notes = `unexpected runner error: ${err.message}`;
+    job.notes = `unexpected runner error: ${(err as Error).message}`;
     job.status = 'blocked';
     writeStatus(job.filePath, 'blocked');
     return job.isolation === 'inline';
   }
 }
 
-module.exports = { run };
+export { run };

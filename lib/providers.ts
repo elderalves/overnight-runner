@@ -1,12 +1,16 @@
-'use strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { spawn } from 'node:child_process';
 
-const fs = require('fs');
-const path = require('path');
-const { spawn } = require('child_process');
+export interface Adapter {
+  skillToken: string;
+  command: string;
+  baseArgs: string[];
+}
 
 // Table-driven adapter per .alves/issues/provider-adapter-contract.md.
 // Adding a provider later means adding one row here -- no other file changes.
-const ADAPTERS = {
+const ADAPTERS: Record<string, Adapter> = {
   claude: {
     skillToken: '/',
     command: 'claude',
@@ -29,8 +33,8 @@ const ADAPTERS = {
 
 const DEFAULT_TIMEOUT_MS = 60 * 60 * 1000;
 
-function adapterFor(providerName) {
-  const adapter = ADAPTERS[providerName];
+function adapterFor(providerName: string | undefined): Adapter {
+  const adapter = providerName === undefined ? undefined : ADAPTERS[providerName];
   if (!adapter) {
     throw new Error(`unknown provider "${providerName}" (known: ${Object.keys(ADAPTERS).join(', ')})`);
   }
@@ -40,7 +44,7 @@ function adapterFor(providerName) {
 // jobFilePath is always an absolute path into the *base* repo's jobs/ dir --
 // jobs/ is gitignored, so it doesn't exist inside a worktree/chained job's
 // checkout, and a path relative to that cwd would resolve nowhere.
-function buildPrompt(providerName, jobFilePath) {
+function buildPrompt(providerName: string | undefined, jobFilePath: string): string {
   const adapter = adapterFor(providerName);
   return `${adapter.skillToken}implement-overnight ${jobFilePath}`;
 }
@@ -48,21 +52,26 @@ function buildPrompt(providerName, jobFilePath) {
 const RESULT_LINE = /^OVERNIGHT_RESULT:\s*(PASS|BLOCKED)\s*$/;
 const REASON_LINE = /^REASON:\s*(.+)$/;
 
+export interface ParsedResult {
+  result: 'PASS' | 'BLOCKED';
+  reason: string;
+}
+
 // Scans for the *last* matching line (in case the token appears earlier in the
 // model's own reasoning/quoted text), then applies the exit-code override.
-function parseResult(stdout, exitCode) {
+function parseResult(stdout: string, exitCode: number | null): ParsedResult {
   const lines = stdout.split('\n');
-  let result = null;
+  let result: 'PASS' | 'BLOCKED' | null = null;
   let reason = '';
   for (let i = 0; i < lines.length; i++) {
-    const m = lines[i].match(RESULT_LINE);
+    const m = lines[i]!.match(RESULT_LINE);
     if (m) {
-      result = m[1];
+      result = m[1] as 'PASS' | 'BLOCKED';
       reason = '';
       if (result === 'BLOCKED') {
         const next = lines[i + 1] || '';
         const rm = next.match(REASON_LINE);
-        if (rm) reason = rm[1].trim();
+        if (rm) reason = rm[1]!.trim();
       }
     }
   }
@@ -78,19 +87,32 @@ function parseResult(stdout, exitCode) {
   return { result, reason };
 }
 
+export interface ProviderResult {
+  result: 'PASS' | 'BLOCKED';
+  reason: string;
+  exitCode: number | null;
+  stdout: string;
+  stderr: string;
+}
+
 // Runs one provider CLI to completion, always resolving (never rejecting) with a
 // normalized {result, reason, exitCode, stdout, stderr} -- crash, timeout, and a
 // clean BLOCKED verdict all end up as the same shape for the runner to record.
-function runProvider(providerName, prompt, cwd, { timeoutMs, logPath } = {}) {
+function runProvider(
+  providerName: string | undefined,
+  prompt: string,
+  cwd: string,
+  { timeoutMs, logPath }: { timeoutMs?: number; logPath?: string } = {}
+): Promise<ProviderResult> {
   const adapter = adapterFor(providerName);
   const effectiveTimeout = timeoutMs || DEFAULT_TIMEOUT_MS;
 
-  return new Promise((resolve) => {
-    let child;
+  return new Promise<ProviderResult>((resolve) => {
+    let child: ReturnType<typeof spawn>;
     try {
       child = spawn(adapter.command, [...adapter.baseArgs, prompt], { cwd });
     } catch (err) {
-      resolve({ result: 'BLOCKED', reason: `failed to launch ${adapter.command}: ${err.message}`, exitCode: null, stdout: '', stderr: '' });
+      resolve({ result: 'BLOCKED', reason: `failed to launch ${adapter.command}: ${(err as Error).message}`, exitCode: null, stdout: '', stderr: '' });
       return;
     }
 
@@ -103,8 +125,8 @@ function runProvider(providerName, prompt, cwd, { timeoutMs, logPath } = {}) {
       child.kill('SIGKILL');
     }, effectiveTimeout);
 
-    child.stdout.on('data', (chunk) => { stdout += chunk; });
-    child.stderr.on('data', (chunk) => { stderr += chunk; });
+    child.stdout!.on('data', (chunk) => { stdout += chunk; });
+    child.stderr!.on('data', (chunk) => { stderr += chunk; });
 
     child.on('error', (err) => {
       clearTimeout(timer);
@@ -122,7 +144,7 @@ function runProvider(providerName, prompt, cwd, { timeoutMs, logPath } = {}) {
             `$ ${adapter.command} ${adapter.baseArgs.join(' ')} <prompt>\ncwd: ${cwd}\n\n--- stdout ---\n${stdout}\n--- stderr ---\n${stderr}\n`
           );
         } catch (err) {
-          console.error(`warning: failed to write log ${logPath}: ${err.message}`);
+          console.error(`warning: failed to write log ${logPath}: ${(err as Error).message}`);
         }
       }
 
@@ -137,4 +159,4 @@ function runProvider(providerName, prompt, cwd, { timeoutMs, logPath } = {}) {
   });
 }
 
-module.exports = { ADAPTERS, buildPrompt, parseResult, runProvider, DEFAULT_TIMEOUT_MS };
+export { ADAPTERS, buildPrompt, parseResult, runProvider, DEFAULT_TIMEOUT_MS };

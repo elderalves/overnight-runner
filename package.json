@@ -4,13 +4,18 @@
   "description": "Thin, provider-agnostic runner for a queue of jobs, each executed by a fresh Claude Code / Codex / Copilot CLI session, checkpointed with git commits.",
   "private": true,
   "license": "UNLICENSED",
+  "type": "module",
   "bin": {
-    "overnight-runner": "bin/overnight-runner"
+    "overnight-runner": "bin/overnight-runner.ts"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=22.18.0"
   },
   "scripts": {
-    "test": "node test/smoke.js"
+    "test": "tsc --noEmit && node test/smoke.ts"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2",
+    "@types/node": "^22.20.1"
   }
 }

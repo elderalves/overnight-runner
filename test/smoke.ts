@@ -1,30 +1,28 @@
-'use strict';
+import assert from 'node:assert';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 
-const assert = require('assert');
-const fs = require('fs');
-const os = require('os');
-const path = require('path');
-const { execFileSync } = require('child_process');
-
-const { readJobFile, writeStatus, identityFor } = require('../lib/frontmatter');
-const { loadQueue } = require('../lib/queue');
-const { parseResult, buildPrompt } = require('../lib/providers');
-const runSummary = require('../lib/runSummary');
+import { readJobFile, writeStatus, identityFor } from '../lib/frontmatter.ts';
+import { loadQueue } from '../lib/queue.ts';
+import { parseResult, buildPrompt } from '../lib/providers.ts';
+import * as runSummary from '../lib/runSummary.ts';
 
 let failures = 0;
 
-function test(name, fn) {
+function test(name: string, fn: () => void): void {
   try {
     fn();
     console.log(`ok - ${name}`);
   } catch (err) {
     failures++;
     console.error(`FAIL - ${name}`);
-    console.error(err.stack || err.message);
+    console.error((err as Error).stack || (err as Error).message);
   }
 }
 
-function tmpRepo() {
+function tmpRepo(): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'overnight-runner-smoke-'));
   execFileSync('git', ['-C', dir, 'init', '-q']);
   execFileSync('git', ['-C', dir, 'config', 'user.email', 'test@example.com']);
@@ -36,7 +34,7 @@ function tmpRepo() {
   return dir;
 }
 
-function writeJob(dir, file, frontmatter, body = 'Do the thing.\n') {
+function writeJob(dir: string, file: string, frontmatter: Record<string, string>, body = 'Do the thing.\n'): void {
   const lines = ['---'];
   for (const [k, v] of Object.entries(frontmatter)) lines.push(`${k}: ${v}`);
   lines.push('---', '');
@@ -96,7 +94,7 @@ test('chained job resolves branch through a valid worktree root', () => {
   writeJob(dir, '01-root.md', { isolation: 'worktree' });
   writeJob(dir, '02-next.md', { isolation: 'chained', chain_from: '01-root' });
   const jobs = loadQueue(dir);
-  const chained = jobs.find((j) => j.identity === '02-next');
+  const chained = jobs.find((j) => j.identity === '02-next')!;
   assert.strictEqual(chained.resolvedBranch, 'overnight/01-root');
   assert.strictEqual(chained.blockedAtLoad, null);
 });
@@ -107,7 +105,7 @@ test('multi-hop chain resolves to the original root, not the intermediate', () =
   writeJob(dir, '02-mid.md', { isolation: 'chained', chain_from: '01-root' });
   writeJob(dir, '03-leaf.md', { isolation: 'chained', chain_from: '02-mid' });
   const jobs = loadQueue(dir);
-  const leaf = jobs.find((j) => j.identity === '03-leaf');
+  const leaf = jobs.find((j) => j.identity === '03-leaf')!;
   assert.strictEqual(leaf.resolvedBranch, 'overnight/01-root');
 });
 
@@ -116,18 +114,18 @@ test('chain_from targeting an inline job is BLOCKED', () => {
   writeJob(dir, '01-inline.md', {});
   writeJob(dir, '02-chained.md', { isolation: 'chained', chain_from: '01-inline' });
   const jobs = loadQueue(dir);
-  const job = jobs.find((j) => j.identity === '02-chained');
+  const job = jobs.find((j) => j.identity === '02-chained')!;
   assert.strictEqual(job.status, 'blocked');
-  assert.ok(/never inline/.test(job.blockedAtLoad));
+  assert.ok(/never inline/.test(job.blockedAtLoad || ''));
 });
 
 test('chain_from targeting a nonexistent job is BLOCKED', () => {
   const dir = tmpRepo();
   writeJob(dir, '01-chained.md', { isolation: 'chained', chain_from: 'does-not-exist' });
   const jobs = loadQueue(dir);
-  const job = jobs[0];
+  const job = jobs[0]!;
   assert.strictEqual(job.status, 'blocked');
-  assert.ok(/not found/.test(job.blockedAtLoad));
+  assert.ok(/not found/.test(job.blockedAtLoad || ''));
 });
 
 test('two jobs naming the same chain_from target are both ambiguously BLOCKED', () => {
@@ -136,11 +134,11 @@ test('two jobs naming the same chain_from target are both ambiguously BLOCKED', 
   writeJob(dir, '02-a.md', { isolation: 'chained', chain_from: '01-root' });
   writeJob(dir, '03-b.md', { isolation: 'chained', chain_from: '01-root' });
   const jobs = loadQueue(dir);
-  const a = jobs.find((j) => j.identity === '02-a');
-  const b = jobs.find((j) => j.identity === '03-b');
+  const a = jobs.find((j) => j.identity === '02-a')!;
+  const b = jobs.find((j) => j.identity === '03-b')!;
   assert.strictEqual(a.status, 'blocked');
   assert.strictEqual(b.status, 'blocked');
-  assert.ok(/ambiguous/.test(a.blockedAtLoad));
+  assert.ok(/ambiguous/.test(a.blockedAtLoad || ''));
 });
 
 test('chain_from targeting a later job in queue order is BLOCKED', () => {
@@ -148,9 +146,9 @@ test('chain_from targeting a later job in queue order is BLOCKED', () => {
   writeJob(dir, '01-chained.md', { isolation: 'chained', chain_from: '02-root' });
   writeJob(dir, '02-root.md', { isolation: 'worktree' });
   const jobs = loadQueue(dir);
-  const job = jobs.find((j) => j.identity === '01-chained');
+  const job = jobs.find((j) => j.identity === '01-chained')!;
   assert.strictEqual(job.status, 'blocked');
-  assert.ok(/precede/.test(job.blockedAtLoad));
+  assert.ok(/precede/.test(job.blockedAtLoad || ''));
 });
 
 test('a validation-blocked job status is persisted back to disk', () => {
@@ -194,8 +192,8 @@ test('run summary renders totals and per-job rows', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'overnight-runner-summary-'));
   const summaryPath = path.join(dir, 'run.md');
   const jobs = [
-    { identity: 'a', isolation: 'inline', initialStatus: 'pending', outcome: 'PASS', duration: 65000, providerUsed: 'claude', commitRef: 'abc123', notes: '' },
-    { identity: 'b', isolation: 'worktree', initialStatus: 'pending', outcome: 'BLOCKED', duration: 5000, providerUsed: 'claude', branchProduced: 'overnight/b', commitRef: 'def456', notes: 'a | pipe' },
+    { identity: 'a', isolation: 'inline', initialStatus: 'pending', outcome: 'PASS' as const, duration: 65000, providerUsed: 'claude', commitRef: 'abc123', notes: '' },
+    { identity: 'b', isolation: 'worktree', initialStatus: 'pending', outcome: 'BLOCKED' as const, duration: 5000, providerUsed: 'claude', branchProduced: 'overnight/b', commitRef: 'def456', notes: 'a | pipe' },
     { identity: 'c', isolation: 'inline', initialStatus: 'done' },
     { identity: 'd', isolation: 'inline', initialStatus: 'pending' },
   ];

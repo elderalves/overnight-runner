@@ -14,7 +14,7 @@ Running a job means invoking the `implement-overnight` skill (and its dependenci
 
 ## Prerequisites
 
-- Node.js >= 18
+- Node.js >= 22.18.0 (the source is TypeScript, run directly via Node's native type-stripping — see [docs/adr/0002](docs/adr/0002-adopt-typescript-via-node-native-type-stripping.md))
 - git
 - One provider CLI installed and authenticated: `claude`, `codex`, or `copilot`
 - The `implement-overnight` skill for your provider (see [Known limitation](#known-limitation))
@@ -27,7 +27,7 @@ cd overnight-runner
 npm link
 ```
 
-`npm link` puts `overnight-runner` on your `PATH`, backed by [bin/overnight-runner](bin/overnight-runner).
+`npm link` puts `overnight-runner` on your `PATH`, backed by [bin/overnight-runner.ts](bin/overnight-runner.ts).
 
 ## Tutorial: run your first queue
 
@@ -125,7 +125,7 @@ For the full glossary — job status semantics, run outcomes, provider adapters,
 npm test
 ```
 
-Runs [test/smoke.js](test/smoke.js) against temporary repos — no target repo or provider CLI required.
+Type-checks the project (`tsc --noEmit`) and runs [test/smoke.ts](test/smoke.ts) against temporary repos — no target repo or provider CLI required.
 
 ## License
 

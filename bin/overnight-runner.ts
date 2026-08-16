@@ -1,11 +1,9 @@
 #!/usr/bin/env node
-'use strict';
+import path from 'node:path';
+import * as runner from '../lib/runner.ts';
+import { ADAPTERS, DEFAULT_TIMEOUT_MS } from '../lib/providers.ts';
 
-const path = require('path');
-const runner = require('../lib/runner');
-const { ADAPTERS, DEFAULT_TIMEOUT_MS } = require('../lib/providers');
-
-function printHelp() {
+function printHelp(): void {
   console.log(`overnight-runner [repo-path] [options]
 
 Runs the jobs/*.md queue in the target repo, one fresh agent session per job
@@ -24,10 +22,17 @@ A job's own \`provider\` frontmatter field always wins over --provider.
 See CONTEXT.md and .alves/issues/ in this repo for the full design.`);
 }
 
-function parseArgs(argv) {
-  const args = { repo: process.cwd(), provider: 'claude', timeoutMinutes: DEFAULT_TIMEOUT_MS / 60000 };
+interface Args {
+  repo: string;
+  provider: string | undefined;
+  timeoutMinutes: number;
+  help?: boolean;
+}
+
+function parseArgs(argv: string[]): Args {
+  const args: Args = { repo: process.cwd(), provider: 'claude', timeoutMinutes: DEFAULT_TIMEOUT_MS / 60000 };
   for (let i = 0; i < argv.length; i++) {
-    const a = argv[i];
+    const a = argv[i]!;
     if (a === '--provider') {
       args.provider = argv[++i];
     } else if (a === '--timeout') {
@@ -44,13 +49,14 @@ function parseArgs(argv) {
   return args;
 }
 
-async function main() {
+async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
   if (args.help) {
     printHelp();
     return;
   }
-  if (!ADAPTERS[args.provider]) {
+  const providerAdapter = args.provider === undefined ? undefined : ADAPTERS[args.provider];
+  if (!providerAdapter) {
     console.error(`Unknown provider "${args.provider}" (known: ${Object.keys(ADAPTERS).join(', ')})`);
     process.exit(1);
   }

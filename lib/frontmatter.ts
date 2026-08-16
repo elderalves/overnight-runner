@@ -1,11 +1,25 @@
-'use strict';
+import fs from 'node:fs';
+import path from 'node:path';
 
-const fs = require('fs');
-const path = require('path');
+export type Frontmatter = Record<string, string>;
+
+interface FrontmatterSplitFound {
+  hasFm: true;
+  fm: string;
+  body: string;
+  fmStart: number;
+  fmEnd: number;
+}
+
+interface FrontmatterSplitNotFound {
+  hasFm: false;
+}
+
+type FrontmatterSplit = FrontmatterSplitFound | FrontmatterSplitNotFound;
 
 // Jobs use scalar-only YAML frontmatter (see .alves/issues/job-file-format.md) --
 // no nesting, no lists -- so a hand-rolled parser is enough and avoids a dependency.
-function splitFrontmatter(raw) {
+function splitFrontmatter(raw: string): FrontmatterSplit {
   if (!raw.startsWith('---\n') && raw !== '---') {
     return { hasFm: false };
   }
@@ -22,8 +36,8 @@ function splitFrontmatter(raw) {
   };
 }
 
-function parseFrontmatter(fm) {
-  const out = {};
+function parseFrontmatter(fm: string): Frontmatter {
+  const out: Frontmatter = {};
   for (const line of fm.split('\n')) {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith('#')) continue;
@@ -39,7 +53,13 @@ function parseFrontmatter(fm) {
   return out;
 }
 
-function readJobFile(filePath) {
+export interface ReadJobFileResult {
+  frontmatter: Frontmatter;
+  body: string;
+  raw: string;
+}
+
+function readJobFile(filePath: string): ReadJobFileResult {
   const raw = fs.readFileSync(filePath, 'utf8');
   const parts = splitFrontmatter(raw);
   const frontmatter = parts.hasFm ? parseFrontmatter(parts.fm) : {};
@@ -48,7 +68,7 @@ function readJobFile(filePath) {
 }
 
 // Identity per job-file-format.md: filename minus extension, overridable by `slug`.
-function identityFor(fileName, frontmatter) {
+function identityFor(fileName: string, frontmatter?: Frontmatter): string {
   if (frontmatter && frontmatter.slug && frontmatter.slug.trim()) return frontmatter.slug.trim();
   return path.basename(fileName, '.md');
 }
@@ -57,7 +77,7 @@ function identityFor(fileName, frontmatter) {
 // cases where a job never reaches implement-overnight's own step-8 write-back
 // (chain_from validation failure, worktree branch collision). The skill owns
 // every other status write.
-function writeStatus(filePath, status) {
+function writeStatus(filePath: string, status: string): void {
   const raw = fs.readFileSync(filePath, 'utf8');
   const parts = splitFrontmatter(raw);
   if (!parts.hasFm) {
@@ -80,4 +100,4 @@ function writeStatus(filePath, status) {
   fs.writeFileSync(filePath, newRaw);
 }
 
-module.exports = { readJobFile, writeStatus, identityFor };
+export { readJobFile, writeStatus, identityFor };

@@ -1,13 +1,30 @@
-'use strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { readJobFile, writeStatus, identityFor } from './frontmatter.ts';
 
-const fs = require('fs');
-const path = require('path');
-const { readJobFile, writeStatus, identityFor } = require('./frontmatter');
+export interface Job {
+  file: string;
+  filePath: string;
+  identity: string;
+  isolation: string;
+  chainFrom: string | null;
+  provider: string | null;
+  initialStatus: string;
+  status: string;
+  resolvedBranch: string | null;
+  blockedAtLoad: string | null;
+  outcome: 'PASS' | 'BLOCKED' | null;
+  notes: string;
+  providerUsed?: string;
+  duration?: number;
+  branchProduced?: string;
+  commitRef?: string;
+}
 
 // Non-recursive glob of jobs/*.md, lexicographic by filename -- see
 // .alves/issues/queue-format-and-failure-policy.md. A jobs/backlog/ subfolder of
 // drafts is naturally excluded since readdirSync + isFile() never descends.
-function loadQueue(repoPath) {
+function loadQueue(repoPath: string): Job[] {
   const jobsDir = path.join(repoPath, 'jobs');
   if (!fs.existsSync(jobsDir)) return [];
 
@@ -16,7 +33,7 @@ function loadQueue(repoPath) {
     .filter((f) => f.endsWith('.md') && fs.statSync(path.join(jobsDir, f)).isFile())
     .sort();
 
-  const jobs = files.map((file) => {
+  const jobs: Job[] = files.map((file) => {
     const filePath = path.join(jobsDir, file);
     const { frontmatter } = readJobFile(filePath);
     const status = (frontmatter.status || 'pending').trim();
@@ -44,15 +61,15 @@ function loadQueue(repoPath) {
 // - chain_from target must exist in the queue
 // - target must resolve (through a chain of chained jobs) to a worktree job, never inline
 // - target must be the immediate predecessor for that lineage, not a distant/ambiguous ancestor
-function validateChains(jobs) {
-  const byIdentity = new Map(jobs.map((j) => [j.identity, j]));
-  const indexOf = new Map(jobs.map((j, i) => [j.identity, i]));
-  const referencedBy = new Map();
+function validateChains(jobs: Job[]): void {
+  const byIdentity = new Map<string, Job>(jobs.map((j) => [j.identity, j]));
+  const indexOf = new Map<string, number>(jobs.map((j, i) => [j.identity, i]));
+  const referencedBy = new Map<string, string[]>();
 
   for (const job of jobs) {
     if (job.isolation !== 'chained' || !job.chainFrom) continue;
     if (!referencedBy.has(job.chainFrom)) referencedBy.set(job.chainFrom, []);
-    referencedBy.get(job.chainFrom).push(job.identity);
+    referencedBy.get(job.chainFrom)!.push(job.identity);
   }
 
   for (const job of jobs) {
@@ -75,13 +92,13 @@ function validateChains(jobs) {
       continue;
     }
 
-    if (indexOf.get(target.identity) >= indexOf.get(job.identity)) {
+    if (indexOf.get(target.identity)! >= indexOf.get(job.identity)!) {
       block(job, `chain_from target "${job.chainFrom}" does not precede this job in queue order`);
       continue;
     }
 
     const root = resolveRoot(target, byIdentity, referencedBy, job.identity);
-    if (root.error) {
+    if (typeof root.error === 'string') {
       block(job, root.error);
       continue;
     }
@@ -89,11 +106,18 @@ function validateChains(jobs) {
   }
 }
 
+type RootResolution = { identity: string; error?: undefined } | { error: string; identity?: undefined };
+
 // Walks chain_from backward to the root worktree job, caching the branch name
 // once at queue-load rather than re-walking at execution time.
-function resolveRoot(startTarget, byIdentity, referencedBy, originIdentity) {
+function resolveRoot(
+  startTarget: Job,
+  byIdentity: Map<string, Job>,
+  referencedBy: Map<string, string[]>,
+  originIdentity: string
+): RootResolution {
   let current = startTarget;
-  const seen = new Set();
+  const seen = new Set<string>();
 
   while (true) {
     if (seen.has(current.identity)) {
@@ -123,7 +147,7 @@ function resolveRoot(startTarget, byIdentity, referencedBy, originIdentity) {
   }
 }
 
-function block(job, reason) {
+function block(job: Job, reason: string): void {
   job.status = 'blocked';
   job.blockedAtLoad = reason;
   job.outcome = 'BLOCKED';
@@ -131,4 +155,4 @@ function block(job, reason) {
   writeStatus(job.filePath, 'blocked');
 }
 
-module.exports = { loadQueue };
+export { loadQueue };
