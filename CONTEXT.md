@@ -9,7 +9,7 @@ A saved, self-contained task spec ready for unattended execution by one agent se
 _Avoid_: task, plan, ticket (a ticket belongs to the wayfinder map, not the runner); handoff (collides with the existing `handoff` and `andre-handoff` skills — different concepts, same word)
 
 **Job status**:
-A job's own persisted lifecycle state — pending, done, or blocked — carried on the job itself so a later run knows whether to run it again. Set from a job's OVERNIGHT_RESULT once it finishes executing.
+A job's own persisted lifecycle state — pending, done, or blocked — carried on the job itself so a later run knows whether to run it again. Written exactly once, in `implement-overnight`'s final commit, from the job's OVERNIGHT_RESULT. A session that crashes or gets interrupted before that final commit never writes it at all — the field stays whatever it was (typically pending), so the job is automatically retried on a future run and resumes from its last checked-off checklist item, no human involved. This is distinct from a deliberate `blocked` write, which needs a manual reset before the job runs again.
 _Avoid_: run outcome (that's a run summary's per-run view of a job, not the job's own persisted state); status (ambiguous with OVERNIGHT_RESULT and run outcome — say which one)
 
 **Queue**:
