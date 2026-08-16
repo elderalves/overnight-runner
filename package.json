@@ -1,0 +1,16 @@
+{
+  "name": "overnight-runner",
+  "version": "0.1.0",
+  "description": "Thin, provider-agnostic runner for a queue of jobs, each executed by a fresh Claude Code / Codex / Copilot CLI session, checkpointed with git commits.",
+  "private": true,
+  "license": "UNLICENSED",
+  "bin": {
+    "overnight-runner": "bin/overnight-runner"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "test": "node test/smoke.js"
+  }
+}
