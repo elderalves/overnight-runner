@@ -8,6 +8,10 @@ A provider-agnostic system for running a queue of unattended coding-agent sessio
 A saved, self-contained task spec ready for unattended execution by one agent session.
 _Avoid_: task, plan, ticket (a ticket belongs to the wayfinder map, not the runner); handoff (collides with the existing `handoff` and `andre-handoff` skills — different concepts, same word)
 
+**Job status**:
+A job's own persisted lifecycle state — pending, done, or blocked — carried on the job itself so a later run knows whether to run it again. Set from a job's OVERNIGHT_RESULT once it finishes executing.
+_Avoid_: run outcome (that's a run summary's per-run view of a job, not the job's own persisted state); status (ambiguous with OVERNIGHT_RESULT and run outcome — say which one)
+
 **Queue**:
 The ordered list of jobs for one overnight run.
 _Avoid_: batch, pipeline
@@ -31,6 +35,14 @@ _Avoid_: driver, plugin
 **OVERNIGHT_RESULT**:
 The machine-readable `PASS`/`BLOCKED` contract a skill emits at the end of a job, so the runner can decide what to do next without another LLM judging free text.
 _Avoid_: exit code, status (too generic — this is a specific emitted contract)
+
+**Run outcome**:
+How a run summary reports one job's result for that specific run: PASS or BLOCKED when the job executed (mirroring its OVERNIGHT_RESULT), SKIPPED when it was already done or blocked from an earlier run, or NOT RUN when the queue stopped before reaching it.
+_Avoid_: job status (the job's own persisted field, not a run's report of it); result (too close to OVERNIGHT_RESULT, which is one execution's contract, not a run's report)
+
+**Run summary**:
+The generated, human-facing report of one run's outcome — one file per run — so Michael can review what happened at a glance without it becoming a second source of truth for job status.
+_Avoid_: report, log (too generic — this is a specific per-run artifact); run state (the runner keeps no separate run-state file; resumability is job-status-driven)
 
 **`implement-overnight`**:
 A new skill, sibling to the existing `implement` skill, that adds the OVERNIGHT_RESULT contract and a deterministic test/review loop for unattended runs. The existing `implement` and `handoff` skills are not modified.
