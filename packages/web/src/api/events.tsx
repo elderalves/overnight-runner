@@ -130,7 +130,7 @@ function ServeStateProvider({ children }: { children: ReactNode }) {
 
     // bfcache restoration can leave a dead connection the browser never
     // auto-reconnects (the page was frozen, not closed) -- force a fresh
-    // connect on visibility/pageshow, same as cezar's own SSE hooks.
+    // connect on visibility/pageshow
     function onVisible() {
       if (document.visibilityState === 'visible') connect();
     }

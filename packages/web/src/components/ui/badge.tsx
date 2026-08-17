@@ -1,6 +1,3 @@
-// Adapted from cezar's ui/badge.tsx (MIT, Patryk Lewczuk) -- see
-// ../../../THIRD_PARTY_NOTICES.md. `secondary` variant kept for parity with
-// the source even though nothing in this map uses it.
 import * as React from 'react';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { Slot } from 'radix-ui';

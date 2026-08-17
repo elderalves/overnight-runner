@@ -1,5 +1,3 @@
-// Adapted from cezar's ui/sheet.tsx (MIT, Patryk Lewczuk) -- see
-// ../../../THIRD_PARTY_NOTICES.md.
 import * as React from 'react';
 import { XIcon } from 'lucide-react';
 import { Dialog as SheetPrimitive } from 'radix-ui';

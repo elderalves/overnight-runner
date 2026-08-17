@@ -6,7 +6,6 @@ export interface ClientOptions {
   headers?: Record<string, string>;
 }
 
-// Mirrors cezar's createCezarClient -- minus the auth-token option, since
 // this map ruled out authentication entirely (localhost-only, no auth). `T`
 // is meant to be instantiated with `AppType`, imported type-only from
 // `overnight-runner/app-type` -- see frontend-stack.md.

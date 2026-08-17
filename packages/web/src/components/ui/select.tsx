@@ -1,5 +1,3 @@
-// Adapted from cezar's ui/select.tsx (MIT, Patryk Lewczuk) -- see
-// ../../../THIRD_PARTY_NOTICES.md.
 import * as React from 'react';
 import { CheckIcon, ChevronDownIcon, ChevronUpIcon } from 'lucide-react';
 import { Select as SelectPrimitive } from 'radix-ui';

@@ -5,7 +5,7 @@ import { extendTailwindMerge } from 'tailwind-merge';
 // (styles/index.css) replaces the shadow scale with xs/sm/md/modal.
 // `shadow-modal` isn't a name it knows, so without this it would classify it
 // as a shadow *color* and let it coexist with `shadow-md` instead of
-// overriding it -- ported from cezar's own lib/utils.ts for the same reason.
+// overriding it
 const twMerge = extendTailwindMerge({
   extend: { classGroups: { shadow: ['shadow-modal'] } },
 });

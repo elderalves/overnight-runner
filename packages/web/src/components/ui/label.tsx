@@ -1,5 +1,3 @@
-// Adapted from cezar's ui/label.tsx (MIT, Patryk Lewczuk) -- see
-// ../../../THIRD_PARTY_NOTICES.md.
 import * as React from 'react';
 import { Label as LabelPrimitive } from 'radix-ui';
 
