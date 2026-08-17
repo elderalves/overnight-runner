@@ -32,6 +32,7 @@ const ADAPTERS: Record<string, Adapter> = {
 };
 
 const DEFAULT_TIMEOUT_MS = 60 * 60 * 1000;
+const HEARTBEAT_INTERVAL_MS = 5 * 60 * 1000;
 
 function adapterFor(providerName: string | undefined): Adapter {
   const adapter = providerName === undefined ? undefined : ADAPTERS[providerName];
@@ -102,7 +103,7 @@ function runProvider(
   providerName: string | undefined,
   prompt: string,
   cwd: string,
-  { timeoutMs, logPath }: { timeoutMs?: number; logPath?: string } = {}
+  { timeoutMs, logPath, onHeartbeat }: { timeoutMs?: number; logPath?: string; onHeartbeat?: (elapsedMs: number, timeoutMs: number) => void } = {}
 ): Promise<ProviderResult> {
   const adapter = adapterFor(providerName);
   const effectiveTimeout = timeoutMs || DEFAULT_TIMEOUT_MS;
@@ -119,22 +120,29 @@ function runProvider(
     let stdout = '';
     let stderr = '';
     let timedOut = false;
+    const startedAt = Date.now();
 
     const timer = setTimeout(() => {
       timedOut = true;
       child.kill('SIGKILL');
     }, effectiveTimeout);
 
+    const heartbeat = onHeartbeat
+      ? setInterval(() => onHeartbeat(Date.now() - startedAt, effectiveTimeout), HEARTBEAT_INTERVAL_MS)
+      : null;
+
     child.stdout!.on('data', (chunk) => { stdout += chunk; });
     child.stderr!.on('data', (chunk) => { stderr += chunk; });
 
     child.on('error', (err) => {
       clearTimeout(timer);
+      if (heartbeat) clearInterval(heartbeat);
       resolve({ result: 'BLOCKED', reason: `provider process error: ${err.message}`, exitCode: null, stdout, stderr });
     });
 
     child.on('close', (code) => {
       clearTimeout(timer);
+      if (heartbeat) clearInterval(heartbeat);
 
       if (logPath) {
         try {

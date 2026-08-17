@@ -13,7 +13,7 @@ export interface Job {
   status: string;
   resolvedBranch: string | null;
   blockedAtLoad: string | null;
-  outcome: 'PASS' | 'BLOCKED' | null;
+  outcome: 'PASS' | 'BLOCKED' | 'RUNNING' | null;
   notes: string;
   providerUsed?: string;
   duration?: number;

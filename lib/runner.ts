@@ -8,6 +8,7 @@ import * as isolation from './isolation.ts';
 import type { IsolationResult } from './isolation.ts';
 import * as runSummary from './runSummary.ts';
 import type { Run } from './runSummary.ts';
+import * as progress from './progress.ts';
 
 function runId(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');
@@ -33,6 +34,7 @@ async function run(
   const logsDir = path.join(repoPath, 'runs', id, 'logs');
 
   const jobs = loadQueue(repoPath);
+  console.log(progress.formatKickoff(id, jobs, baseBranch));
 
   const state: Run = {
     runStatus: 'in-progress',
@@ -43,15 +45,24 @@ async function run(
   };
   runSummary.write(summaryPath, state);
 
-  for (const job of jobs) {
+  for (let i = 0; i < jobs.length; i++) {
+    const job = jobs[i]!;
+    const queuePosition: progress.QueuePosition = { position: i + 1, total: jobs.length };
+
     // Already done/blocked from an earlier run (SKIPPED), or blocked at
     // queue-load this run (chain_from validation) -- neither executes.
     if (job.initialStatus === 'done' || job.initialStatus === 'blocked' || job.blockedAtLoad) {
+      console.log(progress.formatSkip(job, queuePosition));
       continue;
     }
 
-    const stop = await executeJob(repoPath, baseBranch, job, defaultProvider, timeoutMs, logsDir);
+    console.log(progress.formatStarted(job, queuePosition, job.provider || defaultProvider));
+    job.outcome = 'RUNNING';
     runSummary.write(summaryPath, state);
+
+    const stop = await executeJob(repoPath, baseBranch, job, defaultProvider, timeoutMs, logsDir, queuePosition);
+    runSummary.write(summaryPath, state);
+    console.log(progress.formatFinished(job, queuePosition, stop));
     if (stop) break; // inline BLOCKED stops the run; remaining jobs report NOT RUN
   }
 
@@ -68,10 +79,12 @@ async function executeJob(
   job: Job,
   defaultProvider: string | undefined,
   timeoutMs: number | undefined,
-  logsDir: string
+  logsDir: string,
+  queuePosition: progress.QueuePosition
 ): Promise<boolean> {
   const effectiveProvider = job.provider || defaultProvider;
   job.providerUsed = effectiveProvider;
+  const startTime = Date.now();
 
   let setupResult: IsolationResult;
   try {
@@ -84,6 +97,7 @@ async function executeJob(
     job.outcome = 'BLOCKED';
     job.notes = setupResult.blocked;
     job.status = 'blocked';
+    job.duration = Date.now() - startTime;
     writeStatus(job.filePath, 'blocked');
     return job.isolation === 'inline';
   }
@@ -92,8 +106,13 @@ async function executeJob(
     const prompt = providers.buildPrompt(effectiveProvider, job.filePath);
     const logPath = path.join(logsDir, `${job.identity}.log`);
 
-    const startTime = Date.now();
-    const result = await providers.runProvider(effectiveProvider, prompt, setupResult.cwd, { timeoutMs, logPath });
+    const result = await providers.runProvider(effectiveProvider, prompt, setupResult.cwd, {
+      timeoutMs,
+      logPath,
+      onHeartbeat: (elapsedMs, effectiveTimeoutMs) => {
+        console.log(progress.formatHeartbeat(job, queuePosition, elapsedMs, effectiveTimeoutMs));
+      },
+    });
     job.duration = Date.now() - startTime;
 
     isolation.teardown(repoPath, setupResult);
@@ -112,6 +131,7 @@ async function executeJob(
     job.outcome = 'BLOCKED';
     job.notes = `unexpected runner error: ${(err as Error).message}`;
     job.status = 'blocked';
+    job.duration = Date.now() - startTime;
     writeStatus(job.filePath, 'blocked');
     return job.isolation === 'inline';
   }

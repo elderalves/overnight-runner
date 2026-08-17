@@ -23,17 +23,19 @@ function formatDuration(ms: number | null | undefined): string {
 
 // Run outcome per CONTEXT.md: PASS/BLOCKED mirror this execution's own
 // OVERNIGHT_RESULT; SKIPPED means already done/blocked from an earlier run;
-// NOT RUN means the queue was cut short before reaching this job.
-function outcomeFor(job: RunSummaryJob): 'PASS' | 'BLOCKED' | 'SKIPPED' | 'NOT RUN' {
+// NOT RUN means the queue was cut short before reaching this job; RUNNING is
+// a transient marker for a job whose provider CLI process is currently
+// executing -- always replaced by one of the other four once it resolves.
+function outcomeFor(job: RunSummaryJob): 'PASS' | 'BLOCKED' | 'RUNNING' | 'SKIPPED' | 'NOT RUN' {
   if (job.outcome) return job.outcome;
   if (job.initialStatus === 'done' || job.initialStatus === 'blocked') return 'SKIPPED';
   return 'NOT RUN';
 }
 
 function renderTotals(jobs: RunSummaryJob[]): string {
-  const counts: Record<'PASS' | 'BLOCKED' | 'SKIPPED' | 'NOT RUN', number> = { PASS: 0, BLOCKED: 0, SKIPPED: 0, 'NOT RUN': 0 };
+  const counts: Record<'PASS' | 'BLOCKED' | 'RUNNING' | 'SKIPPED' | 'NOT RUN', number> = { PASS: 0, BLOCKED: 0, RUNNING: 0, SKIPPED: 0, 'NOT RUN': 0 };
   for (const job of jobs) counts[outcomeFor(job)]++;
-  return `${counts.PASS} done, ${counts.BLOCKED} blocked, ${counts.SKIPPED} skipped, ${counts['NOT RUN']} not run`;
+  return `${counts.PASS} done, ${counts.BLOCKED} blocked, ${counts.RUNNING} running, ${counts.SKIPPED} skipped, ${counts['NOT RUN']} not run`;
 }
 
 function escapeCell(value: string): string {
@@ -41,10 +43,12 @@ function escapeCell(value: string): string {
 }
 
 function renderRow(job: RunSummaryJob): string {
+  const status = outcomeFor(job);
+  const duration = status === 'RUNNING' ? 'running' : job.duration != null ? formatDuration(job.duration) : '';
   const cells = [
     job.identity,
-    outcomeFor(job),
-    job.duration != null ? formatDuration(job.duration) : '',
+    status,
+    duration,
     job.isolation,
     job.branchProduced || '',
     job.providerUsed || job.provider || '',

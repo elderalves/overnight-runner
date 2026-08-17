@@ -41,8 +41,15 @@ The machine-readable `PASS`/`BLOCKED` contract a skill emits at the end of a job
 _Avoid_: exit code, status (too generic — this is a specific emitted contract)
 
 **Run outcome**:
-How a run summary reports one job's result for that specific run: PASS or BLOCKED when the job executed (mirroring its OVERNIGHT_RESULT), SKIPPED when it was already done or blocked from an earlier run, or NOT RUN when the queue stopped before reaching it.
+How a run summary reports one job's result for that specific run: PASS or BLOCKED when the job executed (mirroring its OVERNIGHT_RESULT), SKIPPED when it was already done or blocked from an earlier run, or NOT RUN when the queue stopped before reaching it. While a job's provider CLI process is currently executing, its row instead shows RUNNING — a transient marker written the instant the runner starts that job, not one of the four outcomes above (those describe a *finished* run's report), and always replaced by one of them once the job resolves.
 _Avoid_: job status (the job's own persisted field, not a run's report of it); result (too close to OVERNIGHT_RESULT, which is one execution's contract, not a run's report)
+
+**Progress line**:
+A line the runner prints to its own stdout during a run — reporting run kickoff, a job starting, a job finishing, a job skipped over at queue-load, or a heartbeat — so a long queue never sits silent long enough to look hung.
+_Avoid_: log line (the per-job log file is a separate, raw-output artifact); notification (that's [Run notification beyond files on disk](.alves/issues/run-notification-beyond-files.md)'s closed question, about run *completion* — this is progress *during* a run)
+
+**Heartbeat**:
+A progress line printed periodically while a job's provider CLI process is still running with no output of its own — reports elapsed time and time remaining until the job's `--timeout`. Cadence is a runner-internal tuning value, not a domain fact — see [Progress feedback during queue execution](.alves/issues/progress-feedback-during-run.md) for the current interval.
 
 **Run summary**:
 The generated, human-facing report of one run's outcome — one file per run — so Michael can review what happened at a glance without it becoming a second source of truth for job status.
