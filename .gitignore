@@ -7,3 +7,5 @@ node_modules/
 jobs/
 runs/
 .worktrees/
+
+.DS_Store
