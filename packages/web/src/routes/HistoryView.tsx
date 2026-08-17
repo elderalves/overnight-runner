@@ -5,6 +5,7 @@ import { StatusPill } from '@/components/StatusPill';
 import { CodeBadge } from '@/components/CodeBadge';
 import { cn } from '@/lib/utils';
 import { TD_BASE, TH_BASE } from '@/lib/table';
+import { formatDuration } from '@/lib/duration';
 
 const COLUMNS = ['Job', 'Status', 'Duration', 'Isolation', 'Branch', 'Provider', 'Commit', 'Notes'];
 
@@ -22,6 +23,8 @@ function HistoryView() {
           id={run.id}
           status={run.runStatus}
           totals={run.totals}
+          started={run.started}
+          ended={run.ended}
           open={openId === run.id}
           onToggle={() => setOpenId((id) => (id === run.id ? null : run.id))}
         />
@@ -35,6 +38,8 @@ interface HistoryRowProps {
   id: string;
   status: string;
   totals: string;
+  started: string;
+  ended: string;
   open: boolean;
   onToggle: () => void;
 }
@@ -42,8 +47,9 @@ interface HistoryRowProps {
 // Each row expands in place -- local disclosure state, no Radix primitive,
 // per design-tokens-component-mapping.md ("nothing decided so far needs
 // Collapsible"). Detail only fetches once expanded.
-function HistoryRow({ id, status, totals, open, onToggle }: HistoryRowProps) {
+function HistoryRow({ id, status, totals, started, ended, open, onToggle }: HistoryRowProps) {
   const { data: detail } = useRun(open ? id : null);
+  const totalDuration = started && ended ? formatDuration(new Date(ended).getTime() - new Date(started).getTime()) : null;
 
   return (
     <div className="mb-2 overflow-hidden rounded-md border border-border">
@@ -52,6 +58,7 @@ function HistoryRow({ id, status, totals, open, onToggle }: HistoryRowProps) {
         <span className="font-mono text-xs font-semibold">{id}</span>
         <span className="rounded-full bg-muted px-2.5 py-0.5 text-xs text-muted-foreground">{status}</span>
         <span className="flex-1" />
+        {totalDuration && <span className="font-mono text-xs text-muted-foreground">{totalDuration}</span>}
         <span className="text-xs text-muted-foreground">{totals}</span>
       </button>
       {open && detail && (

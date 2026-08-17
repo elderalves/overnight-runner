@@ -8,6 +8,7 @@ import { readJobFile, writeStatus, identityFor } from '../lib/frontmatter.ts';
 import { loadQueue } from '../lib/queue.ts';
 import { parseResult, buildPrompt } from '../lib/providers.ts';
 import * as runSummary from '../lib/runSummary.ts';
+import * as runHistory from '../lib/runHistory.ts';
 import * as progress from '../lib/progress.ts';
 import { ServeState } from '../server/runState.ts';
 
@@ -235,6 +236,37 @@ test('run summary renders a RUNNING row with a static duration cell and counts i
   const content = fs.readFileSync(summaryPath, 'utf8');
   assert.ok(content.includes('0 done, 0 blocked, 1 running, 0 skipped, 0 not run'));
   assert.ok(content.includes('| e | RUNNING | running | worktree |'));
+});
+
+test('run summary round-trips the ended timestamp through history parsing', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'overnight-runner-summary-ended-'));
+  fs.mkdirSync(path.join(dir, 'runs'), { recursive: true });
+  const jobs = [{ identity: 'a', isolation: 'inline', initialStatus: 'pending', outcome: 'PASS' as const, duration: 1000 }];
+  runSummary.write(path.join(dir, 'runs', '2026-08-16-2200.md'), {
+    runStatus: 'complete',
+    started: '2026-08-16T22:00:00.000Z',
+    ended: '2026-08-16T22:10:00.000Z',
+    baseBranch: 'main',
+    provider: 'claude',
+    jobs,
+  });
+  const detail = runHistory.readRun(dir, '2026-08-16-2200');
+  assert.strictEqual(detail?.started, '2026-08-16T22:00:00.000Z');
+  assert.strictEqual(detail?.ended, '2026-08-16T22:10:00.000Z');
+});
+
+test('an in-progress run summary round-trips an empty ended field', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'overnight-runner-summary-inprogress-'));
+  fs.mkdirSync(path.join(dir, 'runs'), { recursive: true });
+  runSummary.write(path.join(dir, 'runs', '2026-08-16-2201.md'), {
+    runStatus: 'in-progress',
+    started: '2026-08-16T22:00:00.000Z',
+    baseBranch: 'main',
+    provider: 'claude',
+    jobs: [],
+  });
+  const detail = runHistory.readRun(dir, '2026-08-16-2201');
+  assert.strictEqual(detail?.ended, '');
 });
 
 // --- progress lines ---

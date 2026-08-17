@@ -1,14 +1,7 @@
-import { useEffect, useState } from 'react';
 import type { Job, RunState } from 'contract';
 import { StatusPill } from '@/components/StatusPill';
 import { Chip } from '@/components/Chip';
-
-function formatDuration(ms: number): string {
-  const totalSec = Math.max(Math.round(ms / 1000), 0);
-  const m = Math.floor(totalSec / 60);
-  const s = totalSec % 60;
-  return `${m}m${String(s).padStart(2, '0')}s`;
-}
+import { formatDuration, useNow } from '@/lib/duration';
 
 interface HeartbeatProps {
   startedAt: string;
@@ -19,13 +12,7 @@ interface HeartbeatProps {
 // startedAt/timeoutMs -- no server-pushed heartbeat, per
 // api-endpoint-contract.md's "No server-pushed heartbeat".
 function Heartbeat({ startedAt, timeoutMs }: HeartbeatProps) {
-  const [now, setNow] = useState(() => Date.now());
-
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(id);
-  }, []);
-
+  const now = useNow(true);
   const elapsed = now - new Date(startedAt).getTime();
   const remaining = Math.max(timeoutMs - elapsed, 0);
   const pct = Math.min((elapsed / timeoutMs) * 100, 100);

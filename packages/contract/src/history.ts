@@ -17,6 +17,7 @@ export interface RunHistorySummary {
   id: string;
   runStatus: 'in-progress' | 'complete';
   started: string;
+  ended: string;
   baseBranch: string;
   provider?: string;
   totals: string;

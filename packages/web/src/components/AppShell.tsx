@@ -1,10 +1,11 @@
 import { History, ListChecks, Settings as SettingsIcon } from 'lucide-react';
 import { NavLink, Outlet, useLocation } from 'react-router';
-import type { JobDisplayStatus } from 'contract';
+import type { JobDisplayStatus, RunState } from 'contract';
 import { useServeState } from '@/api/events';
 import { useComposer } from '@/components/ComposerContext';
 import { JobComposer } from '@/components/JobComposer';
 import { buttonClass, cn } from '@/lib/utils';
+import { formatDuration, useNow } from '@/lib/duration';
 import { client } from '@/api/client';
 
 const NAV = [
@@ -22,6 +23,18 @@ const DOT_CLASS: Record<JobDisplayStatus, string> = {
   'NOT RUN': 'bg-soft-foreground',
   SKIPPED: 'bg-soft-foreground',
 };
+
+// Time since this run started, frozen at its final value once it ends --
+// ticks off run.startedAt the same way JobDetail's Heartbeat ticks off a
+// job's, via the shared duration.ts helper.
+function RunElapsed({ run }: { run: RunState }) {
+  const isLive = run.status === 'in-progress';
+  const now = useNow(isLive);
+  const endMs = run.endedAt ? new Date(run.endedAt).getTime() : now;
+  const elapsed = endMs - new Date(run.startedAt).getTime();
+
+  return <span className="font-mono text-xs text-muted-foreground">{formatDuration(elapsed)} elapsed</span>;
+}
 
 // Persistent sidebar (brand tile + nav + "this run" status glance) beside a
 // main content area -- the winning "App Shell" IA from
@@ -87,6 +100,7 @@ function AppShell() {
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex h-[52px] flex-none items-center gap-2.5 border-b border-border px-4">
           <h1 className="text-[15px] font-semibold">{title}</h1>
+          {run && <RunElapsed run={run} />}
           <div className="flex-1" />
           <button className={buttonClass('outline', 'sm')} onClick={() => openComposer('create')}>
             + New job

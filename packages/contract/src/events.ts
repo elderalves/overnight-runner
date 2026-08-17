@@ -9,6 +9,8 @@ export interface RunState {
   baseBranch: string;
   provider?: string;
   lines: string[];
+  startedAt: string;
+  endedAt?: string;
 }
 
 export interface RepoIdentity {
@@ -31,6 +33,7 @@ export interface RunStartedEvent {
   jobCount: number;
   baseBranch: string;
   provider?: string;
+  startedAt: string;
   line: string;
 }
 
@@ -71,6 +74,7 @@ export interface RunCompleteEvent {
   runId: string;
   reason: RunCompleteReason;
   summaryPath: string;
+  endedAt: string;
 }
 
 export type ServeEvent =
