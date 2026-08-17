@@ -58,6 +58,7 @@ function parseRunSummary(id: string, content: string): RunHistoryDetail {
     id,
     runStatus: fm.run_status === 'in-progress' ? 'in-progress' : 'complete',
     started: fm.started ?? '',
+    ended: fm.ended ?? '',
     baseBranch: fm.base_branch ?? '',
     provider: fm.provider && fm.provider !== 'undefined' ? fm.provider : undefined,
     totals,

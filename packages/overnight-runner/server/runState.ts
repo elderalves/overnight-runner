@@ -24,6 +24,8 @@ interface InternalRun {
   baseBranch: string;
   provider?: string;
   lines: string[];
+  startedAt: string;
+  endedAt?: string;
 }
 
 // A job's outcome as of the last runner event that touched it, keyed by
@@ -91,6 +93,8 @@ class ServeState {
             baseBranch: this.currentRun.baseBranch,
             provider: this.currentRun.provider,
             lines: this.currentRun.lines,
+            startedAt: this.currentRun.startedAt,
+            endedAt: this.currentRun.endedAt,
           }
         : null,
       // Read live rather than cached: unlike baseBranch (fixed for a run's
@@ -171,12 +175,14 @@ class ServeState {
           baseBranch: event.baseBranch,
           provider: event.provider,
           lines: [event.line],
+          startedAt: event.startedAt,
         };
         const payload: RunStartedEvent = {
           runId: event.runId,
           jobCount: event.jobCount,
           baseBranch: event.baseBranch,
           provider: event.provider,
+          startedAt: event.startedAt,
           line: event.line,
         };
         this.broadcast('run-started', payload);
@@ -228,8 +234,11 @@ class ServeState {
         break;
       }
       case 'run-complete': {
-        if (this.currentRun) this.currentRun.status = 'complete';
-        const payload: RunCompleteEvent = { runId: event.runId, reason: event.reason, summaryPath: event.summaryPath };
+        if (this.currentRun) {
+          this.currentRun.status = 'complete';
+          this.currentRun.endedAt = event.endedAt;
+        }
+        const payload: RunCompleteEvent = { runId: event.runId, reason: event.reason, summaryPath: event.summaryPath, endedAt: event.endedAt };
         this.broadcast('run-complete', payload);
         break;
       }

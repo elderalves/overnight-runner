@@ -8,15 +8,8 @@ import { CodeBadge } from '@/components/CodeBadge';
 import { JobDetail } from '@/components/JobDetail';
 import { buttonClass, cn } from '@/lib/utils';
 import { TD_BASE, TH_BASE } from '@/lib/table';
+import { formatDuration } from '@/lib/duration';
 import { client } from '@/api/client';
-
-function formatDuration(ms?: number): string {
-  if (ms == null) return '—';
-  const totalSec = Math.round(ms / 1000);
-  const m = Math.floor(totalSec / 60);
-  const s = totalSec % 60;
-  return `${m}m${String(s).padStart(2, '0')}s`;
-}
 
 function isolationTone(isolation: string): 'worktree' | 'chained' | 'neutral' {
   if (isolation === 'worktree') return 'worktree';
@@ -89,7 +82,9 @@ function QueueView() {
                   <td className={cn(TD_BASE, 'max-w-[140px] truncate')} title={job.branchProduced}>
                     {job.branchProduced ? <CodeBadge>{job.branchProduced}</CodeBadge> : <span className="text-soft-foreground">—</span>}
                   </td>
-                  <td className={cn(TD_BASE, 'font-mono text-xs text-muted-foreground')}>{formatDuration(job.duration)}</td>
+                  <td className={cn(TD_BASE, 'font-mono text-xs text-muted-foreground')}>
+                    {job.duration != null ? formatDuration(job.duration) : '—'}
+                  </td>
                   <td className={TD_BASE} onClick={(e) => e.stopPropagation()}>
                     <div className="flex justify-end gap-0.5">
                       {job.status === 'blocked' && (

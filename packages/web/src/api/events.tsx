@@ -10,6 +10,7 @@ import type {
   JobStartedEvent,
   JobFinishedEvent,
   JobSkippedEvent,
+  RunCompleteEvent,
 } from 'contract';
 
 interface RunningJob {
@@ -81,7 +82,14 @@ function ServeStateProvider({ children }: { children: ReactNode }) {
         const data: RunStartedEvent = JSON.parse((e as MessageEvent).data);
         setState((prev) => ({
           ...prev,
-          run: { runId: data.runId, status: 'in-progress', baseBranch: data.baseBranch, provider: data.provider, lines: [data.line] },
+          run: {
+            runId: data.runId,
+            status: 'in-progress',
+            baseBranch: data.baseBranch,
+            provider: data.provider,
+            lines: [data.line],
+            startedAt: data.startedAt,
+          },
         }));
       });
 
@@ -124,8 +132,13 @@ function ServeStateProvider({ children }: { children: ReactNode }) {
         setState((prev) => appendLine(patchJob(prev, data.identity, { displayStatus: 'BLOCKED', notes: data.reason }), data.line));
       });
 
-      source.addEventListener('run-complete', () => {
-        setState((prev) => ({ ...prev, run: prev.run ? { ...prev.run, status: 'complete' } : prev.run, runningJob: null }));
+      source.addEventListener('run-complete', (e) => {
+        const data: RunCompleteEvent = JSON.parse((e as MessageEvent).data);
+        setState((prev) => ({
+          ...prev,
+          run: prev.run ? { ...prev.run, status: 'complete', endedAt: data.endedAt } : prev.run,
+          runningJob: null,
+        }));
       });
 
       source.onopen = () => setState((prev) => ({ ...prev, connected: true }));

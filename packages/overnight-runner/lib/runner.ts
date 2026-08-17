@@ -40,12 +40,12 @@ export type RunCompleteReason = 'natural' | 'stopped' | 'cancelled' | 'inline-bl
 // timeoutMs/pre-rendered line without the listener re-deriving them, so this
 // carries exactly what api-endpoint-contract.md's SSE payloads need instead.
 export type RunUpdateEvent =
-  | { type: 'run-started'; runId: string; jobCount: number; baseBranch: string; provider?: string; line: string }
+  | { type: 'run-started'; runId: string; jobCount: number; baseBranch: string; provider?: string; startedAt: string; line: string }
   | { type: 'job-started'; job: Job; queuePosition: progress.QueuePosition; timeoutMs: number; startedAt: string; line: string }
   | { type: 'job-skipped'; job: Job; queuePosition: progress.QueuePosition; line: string }
   | { type: 'job-blocked-at-load'; job: Job; queuePosition: progress.QueuePosition; line: string }
   | { type: 'job-finished'; job: Job; queuePosition: progress.QueuePosition; stopping: boolean; line: string }
-  | { type: 'run-complete'; runId: string; reason: RunCompleteReason; summaryPath: string };
+  | { type: 'run-complete'; runId: string; reason: RunCompleteReason; summaryPath: string; endedAt: string };
 
 async function run(
   repoPath: string,
@@ -74,7 +74,15 @@ async function run(
     jobs,
   };
   runSummary.write(summaryPath, state);
-  onUpdate?.({ type: 'run-started', runId: id, jobCount: jobs.length, baseBranch, provider: defaultProvider, line: kickoffLine });
+  onUpdate?.({
+    type: 'run-started',
+    runId: id,
+    jobCount: jobs.length,
+    baseBranch,
+    provider: defaultProvider,
+    startedAt: state.started,
+    line: kickoffLine,
+  });
 
   let completionReason: RunCompleteReason = 'natural';
 
@@ -125,8 +133,9 @@ async function run(
   }
 
   state.runStatus = 'complete';
+  state.ended = new Date().toISOString();
   runSummary.write(summaryPath, state);
-  onUpdate?.({ type: 'run-complete', runId: id, reason: completionReason, summaryPath });
+  onUpdate?.({ type: 'run-complete', runId: id, reason: completionReason, summaryPath, endedAt: state.ended });
   return summaryPath;
 }
 

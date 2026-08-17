@@ -8,6 +8,7 @@ export type RunSummaryJob = Pick<Job, 'identity' | 'isolation' | 'initialStatus'
 export interface Run {
   runStatus: 'in-progress' | 'complete';
   started: string;
+  ended?: string;
   baseBranch: string;
   provider?: string;
   jobs: RunSummaryJob[];
@@ -59,8 +60,16 @@ function renderRow(job: RunSummaryJob): string {
 }
 
 function write(summaryPath: string, run: Run): void {
-  const { runStatus, started, baseBranch, provider, jobs } = run;
-  const header = ['---', `run_status: ${runStatus}`, `started: ${started}`, `base_branch: ${baseBranch}`, `provider: ${provider}`, '---'].join('\n');
+  const { runStatus, started, ended, baseBranch, provider, jobs } = run;
+  const header = [
+    '---',
+    `run_status: ${runStatus}`,
+    `started: ${started}`,
+    `ended: ${ended ?? ''}`,
+    `base_branch: ${baseBranch}`,
+    `provider: ${provider}`,
+    '---',
+  ].join('\n');
   const totals = renderTotals(jobs);
   const tableHeader = '| Job | Status | Duration | Isolation mode | Branch produced | Provider | Commit ref | Notes |';
   const tableDivider = '|---|---|---|---|---|---|---|---|';
