@@ -1,11 +1,22 @@
 import { useMemo, useState } from 'react';
 import { Copy, Pencil, RotateCcw, Trash2 } from 'lucide-react';
+import type { Job } from 'contract';
 import { useServeState } from '@/api/events';
 import { useComposer } from '@/components/ComposerContext';
 import { StatusPill } from '@/components/StatusPill';
 import { Chip } from '@/components/Chip';
 import { CodeBadge } from '@/components/CodeBadge';
 import { JobDetail } from '@/components/JobDetail';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+} from '@/components/ui/alert-dialog';
 import { buttonClass, cn } from '@/lib/utils';
 import { TD_BASE, TH_BASE } from '@/lib/table';
 import { client } from '@/api/client';
@@ -30,7 +41,9 @@ function QueueView() {
   const { queue, run, runningJob } = useServeState();
   const { openComposer } = useComposer();
   const [selected, setSelected] = useState<string | null>(null);
-  const [armedDelete, setArmedDelete] = useState<string | null>(null);
+  const [deletingJob, setDeletingJob] = useState<Job | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const selectedJob = useMemo(() => {
     if (selected) {
@@ -40,13 +53,22 @@ function QueueView() {
     return queue.find((j) => j.identity === runningJob?.identity) ?? queue[queue.length - 1] ?? null;
   }, [queue, selected, runningJob]);
 
-  async function handleDelete(identity: string) {
-    if (armedDelete !== identity) {
-      setArmedDelete(identity);
+  function closeDeleteDialog() {
+    setDeletingJob(null);
+    setDeleteError(null);
+  }
+
+  async function confirmDelete() {
+    if (!deletingJob) return;
+    setDeleting(true);
+    setDeleteError(null);
+    const res = await client.api.jobs[':identity'].$delete({ param: { identity: deletingJob.identity } });
+    setDeleting(false);
+    if (!res.ok) {
+      setDeleteError('Failed to delete job. Please try again.');
       return;
     }
-    setArmedDelete(null);
-    await client.api.jobs[':identity'].$delete({ param: { identity } });
+    setDeletingJob(null);
   }
 
   async function handleReset(identity: string) {
@@ -121,10 +143,10 @@ function QueueView() {
                         <Copy className="size-3.5" />
                       </button>
                       <button
-                        title={armedDelete === job.identity ? 'Click again to confirm' : 'Delete'}
+                        title="Delete"
                         aria-label="Delete"
-                        className={cn(buttonClass('ghost', 'sm'), 'w-7 px-0', armedDelete === job.identity && 'bg-danger/15 text-danger')}
-                        onClick={() => handleDelete(job.identity)}
+                        className={cn(buttonClass('ghost', 'sm'), 'w-7 px-0')}
+                        onClick={() => setDeletingJob(job)}
                       >
                         <Trash2 className="size-3.5" />
                       </button>
@@ -151,6 +173,40 @@ function QueueView() {
           <p className="text-sm text-soft-foreground">Select a job to see its detail.</p>
         )}
       </div>
+
+      <AlertDialog open={deletingJob !== null} onOpenChange={(open) => !open && closeDeleteDialog()}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this job?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This permanently removes <span className="font-mono text-foreground">{deletingJob?.identity}</span> from the queue. This can't be
+              undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {deletingJob?.displayStatus === 'RUNNING' && (
+            <p className="rounded-md bg-danger/10 px-3 py-2 text-sm text-danger">
+              This job is currently running — deleting it now may leave the in-progress run in an inconsistent state.
+            </p>
+          )}
+          {deleteError && <p className="rounded-md bg-danger/10 px-3 py-2 text-sm text-danger">{deleteError}</p>}
+          <AlertDialogFooter>
+            <AlertDialogCancel type="button" className={buttonClass('outline', 'sm')} disabled={deleting}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              type="button"
+              className={buttonClass('danger', 'sm')}
+              disabled={deleting}
+              onClick={(e) => {
+                e.preventDefault();
+                void confirmDelete();
+              }}
+            >
+              {deleting ? 'Deleting…' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
