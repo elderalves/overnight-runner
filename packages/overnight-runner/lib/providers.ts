@@ -94,6 +94,11 @@ export interface ProviderResult {
   exitCode: number | null;
   stdout: string;
   stderr: string;
+  // True only when `signal` fired -- a deliberate serve-mode Cancel, distinct
+  // from a timeout, so the caller can force an explicit "blocked" write
+  // instead of the free crash-equivalent pending/auto-retry a timeout gets.
+  // See .alves/issues/overnight-runner-web-interface/run-control-semantics.md.
+  cancelled: boolean;
 }
 
 // Runs one provider CLI to completion, always resolving (never rejecting) with a
@@ -103,7 +108,12 @@ function runProvider(
   providerName: string | undefined,
   prompt: string,
   cwd: string,
-  { timeoutMs, logPath, onHeartbeat }: { timeoutMs?: number; logPath?: string; onHeartbeat?: (elapsedMs: number, timeoutMs: number) => void } = {}
+  {
+    timeoutMs,
+    logPath,
+    onHeartbeat,
+    signal,
+  }: { timeoutMs?: number; logPath?: string; onHeartbeat?: (elapsedMs: number, timeoutMs: number) => void; signal?: AbortSignal } = {}
 ): Promise<ProviderResult> {
   const adapter = adapterFor(providerName);
   const effectiveTimeout = timeoutMs || DEFAULT_TIMEOUT_MS;
@@ -113,19 +123,26 @@ function runProvider(
     try {
       child = spawn(adapter.command, [...adapter.baseArgs, prompt], { cwd });
     } catch (err) {
-      resolve({ result: 'BLOCKED', reason: `failed to launch ${adapter.command}: ${(err as Error).message}`, exitCode: null, stdout: '', stderr: '' });
+      resolve({ result: 'BLOCKED', reason: `failed to launch ${adapter.command}: ${(err as Error).message}`, exitCode: null, stdout: '', stderr: '', cancelled: false });
       return;
     }
 
     let stdout = '';
     let stderr = '';
     let timedOut = false;
+    let cancelled = false;
     const startedAt = Date.now();
 
     const timer = setTimeout(() => {
       timedOut = true;
       child.kill('SIGKILL');
     }, effectiveTimeout);
+
+    const onAbort = () => {
+      cancelled = true;
+      child.kill('SIGKILL');
+    };
+    signal?.addEventListener('abort', onAbort);
 
     const heartbeat = onHeartbeat
       ? setInterval(() => onHeartbeat(Date.now() - startedAt, effectiveTimeout), HEARTBEAT_INTERVAL_MS)
@@ -137,12 +154,14 @@ function runProvider(
     child.on('error', (err) => {
       clearTimeout(timer);
       if (heartbeat) clearInterval(heartbeat);
-      resolve({ result: 'BLOCKED', reason: `provider process error: ${err.message}`, exitCode: null, stdout, stderr });
+      signal?.removeEventListener('abort', onAbort);
+      resolve({ result: 'BLOCKED', reason: `provider process error: ${err.message}`, exitCode: null, stdout, stderr, cancelled: false });
     });
 
     child.on('close', (code) => {
       clearTimeout(timer);
       if (heartbeat) clearInterval(heartbeat);
+      signal?.removeEventListener('abort', onAbort);
 
       if (logPath) {
         try {
@@ -156,13 +175,18 @@ function runProvider(
         }
       }
 
+      if (cancelled) {
+        resolve({ result: 'BLOCKED', reason: 'cancelled by user', exitCode: null, stdout, stderr, cancelled: true });
+        return;
+      }
+
       if (timedOut) {
-        resolve({ result: 'BLOCKED', reason: 'timed out and was killed', exitCode: 124, stdout, stderr });
+        resolve({ result: 'BLOCKED', reason: 'timed out and was killed', exitCode: 124, stdout, stderr, cancelled: false });
         return;
       }
 
       const parsed = parseResult(stdout, code);
-      resolve({ ...parsed, exitCode: code, stdout, stderr });
+      resolve({ ...parsed, exitCode: code, stdout, stderr, cancelled: false });
     });
   });
 }

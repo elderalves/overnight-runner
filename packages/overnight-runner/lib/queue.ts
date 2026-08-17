@@ -11,6 +11,7 @@ export interface Job {
   provider: string | null;
   initialStatus: string;
   status: string;
+  body: string;
   resolvedBranch: string | null;
   blockedAtLoad: string | null;
   outcome: 'PASS' | 'BLOCKED' | 'RUNNING' | null;
@@ -35,7 +36,7 @@ function loadQueue(repoPath: string): Job[] {
 
   const jobs: Job[] = files.map((file) => {
     const filePath = path.join(jobsDir, file);
-    const { frontmatter } = readJobFile(filePath);
+    const { frontmatter, body } = readJobFile(filePath);
     const status = (frontmatter.status || 'pending').trim();
     return {
       file,
@@ -46,6 +47,7 @@ function loadQueue(repoPath: string): Job[] {
       provider: frontmatter.provider ? frontmatter.provider.trim() : null,
       initialStatus: status,
       status,
+      body,
       resolvedBranch: null,
       blockedAtLoad: null,
       outcome: null,

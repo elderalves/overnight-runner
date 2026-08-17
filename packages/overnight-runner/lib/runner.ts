@@ -23,9 +23,38 @@ function safeShortRef(repoPath: string, ref: string): string {
   }
 }
 
+// Threaded in by serve mode only -- the plain CLI passes neither, so its
+// behavior (run to natural completion, no early-stop reason to report) is
+// unaffected. shouldStop() is polled at the top of each loop iteration
+// (graceful Stop); signal is handed down into the in-flight child process
+// for an immediate kill (Cancel) -- see run-control-semantics.md.
+export interface RunControl {
+  shouldStop(): boolean;
+  signal: AbortSignal;
+}
+
+export type RunCompleteReason = 'natural' | 'stopped' | 'cancelled' | 'inline-blocked';
+
+// A concretization of server-architecture.md's `onUpdate: (run: Run) => void`
+// sketch: a bare Run snapshot can't carry job-started's queuePosition/
+// timeoutMs/pre-rendered line without the listener re-deriving them, so this
+// carries exactly what api-endpoint-contract.md's SSE payloads need instead.
+export type RunUpdateEvent =
+  | { type: 'run-started'; runId: string; jobCount: number; baseBranch: string; provider?: string; line: string }
+  | { type: 'job-started'; job: Job; queuePosition: progress.QueuePosition; timeoutMs: number; startedAt: string; line: string }
+  | { type: 'job-skipped'; job: Job; queuePosition: progress.QueuePosition; line: string }
+  | { type: 'job-blocked-at-load'; job: Job; queuePosition: progress.QueuePosition; line: string }
+  | { type: 'job-finished'; job: Job; queuePosition: progress.QueuePosition; stopping: boolean; line: string }
+  | { type: 'run-complete'; runId: string; reason: RunCompleteReason; summaryPath: string };
+
 async function run(
   repoPath: string,
-  { defaultProvider, timeoutMs }: { defaultProvider?: string; timeoutMs?: number } = {}
+  {
+    defaultProvider,
+    timeoutMs,
+    onUpdate,
+    control,
+  }: { defaultProvider?: string; timeoutMs?: number; onUpdate?: (event: RunUpdateEvent) => void; control?: RunControl } = {}
 ): Promise<string> {
   const baseBranch = git.currentBranch(repoPath);
   const started = new Date();
@@ -34,7 +63,8 @@ async function run(
   const logsDir = path.join(repoPath, 'runs', id, 'logs');
 
   const jobs = loadQueue(repoPath);
-  console.log(progress.formatKickoff(id, jobs, baseBranch));
+  const kickoffLine = progress.formatKickoff(id, jobs, baseBranch);
+  console.log(kickoffLine);
 
   const state: Run = {
     runStatus: 'in-progress',
@@ -44,30 +74,59 @@ async function run(
     jobs,
   };
   runSummary.write(summaryPath, state);
+  onUpdate?.({ type: 'run-started', runId: id, jobCount: jobs.length, baseBranch, provider: defaultProvider, line: kickoffLine });
+
+  let completionReason: RunCompleteReason = 'natural';
 
   for (let i = 0; i < jobs.length; i++) {
+    if (control?.signal.aborted) {
+      completionReason = 'cancelled';
+      break;
+    }
+    if (control?.shouldStop()) {
+      completionReason = 'stopped';
+      break;
+    }
+
     const job = jobs[i]!;
     const queuePosition: progress.QueuePosition = { position: i + 1, total: jobs.length };
 
     // Already done/blocked from an earlier run (SKIPPED), or blocked at
     // queue-load this run (chain_from validation) -- neither executes.
     if (job.initialStatus === 'done' || job.initialStatus === 'blocked' || job.blockedAtLoad) {
-      console.log(progress.formatSkip(job, queuePosition));
+      const skipLine = progress.formatSkip(job, queuePosition);
+      console.log(skipLine);
+      onUpdate?.({ type: job.blockedAtLoad ? 'job-blocked-at-load' : 'job-skipped', job, queuePosition, line: skipLine });
       continue;
     }
 
-    console.log(progress.formatStarted(job, queuePosition, job.provider || defaultProvider));
+    const effectiveTimeoutMs = timeoutMs || providers.DEFAULT_TIMEOUT_MS;
+    const startedAt = new Date().toISOString();
+    const startedLine = progress.formatStarted(job, queuePosition, job.provider || defaultProvider);
+    console.log(startedLine);
     job.outcome = 'RUNNING';
     runSummary.write(summaryPath, state);
+    onUpdate?.({ type: 'job-started', job, queuePosition, timeoutMs: effectiveTimeoutMs, startedAt, line: startedLine });
 
-    const stop = await executeJob(repoPath, baseBranch, job, defaultProvider, timeoutMs, logsDir, queuePosition);
+    const stop = await executeJob(repoPath, baseBranch, job, defaultProvider, timeoutMs, logsDir, queuePosition, control?.signal);
     runSummary.write(summaryPath, state);
-    console.log(progress.formatFinished(job, queuePosition, stop));
-    if (stop) break; // inline BLOCKED stops the run; remaining jobs report NOT RUN
+    const finishedLine = progress.formatFinished(job, queuePosition, stop);
+    console.log(finishedLine);
+    onUpdate?.({ type: 'job-finished', job, queuePosition, stopping: stop, line: finishedLine });
+
+    if (control?.signal.aborted) {
+      completionReason = 'cancelled';
+      break;
+    }
+    if (stop) {
+      completionReason = 'inline-blocked';
+      break; // inline BLOCKED stops the run; remaining jobs report NOT RUN
+    }
   }
 
   state.runStatus = 'complete';
   runSummary.write(summaryPath, state);
+  onUpdate?.({ type: 'run-complete', runId: id, reason: completionReason, summaryPath });
   return summaryPath;
 }
 
@@ -80,7 +139,8 @@ async function executeJob(
   defaultProvider: string | undefined,
   timeoutMs: number | undefined,
   logsDir: string,
-  queuePosition: progress.QueuePosition
+  queuePosition: progress.QueuePosition,
+  signal?: AbortSignal
 ): Promise<boolean> {
   const effectiveProvider = job.provider || defaultProvider;
   job.providerUsed = effectiveProvider;
@@ -109,6 +169,7 @@ async function executeJob(
     const result = await providers.runProvider(effectiveProvider, prompt, setupResult.cwd, {
       timeoutMs,
       logPath,
+      signal,
       onHeartbeat: (elapsedMs, effectiveTimeoutMs) => {
         console.log(progress.formatHeartbeat(job, queuePosition, elapsedMs, effectiveTimeoutMs));
       },
@@ -121,6 +182,15 @@ async function executeJob(
     job.notes = result.reason || '';
     job.branchProduced = setupResult.branchProduced;
     job.commitRef = safeShortRef(repoPath, job.branchProduced || 'HEAD');
+
+    // Cancel kills the child before the skill ever gets to write its own
+    // status -- the runner must write it, same shape as the isolation-setup
+    // and unknown-provider cases below, forcing "blocked" rather than the
+    // free pending/auto-retry a timeout leaves. See run-control-semantics.md.
+    if (result.cancelled) {
+      job.status = 'blocked';
+      writeStatus(job.filePath, 'blocked');
+    }
 
     return job.isolation === 'inline' && job.outcome === 'BLOCKED';
   } catch (err) {

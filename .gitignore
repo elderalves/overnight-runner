@@ -7,5 +7,9 @@ node_modules/
 jobs/
 runs/
 .worktrees/
+.overnight-runner-settings.json
+
+# packages/web's Vite build output, read at runtime by packages/overnight-runner/server/staticUi.ts.
+packages/web/dist/
 
 .DS_Store

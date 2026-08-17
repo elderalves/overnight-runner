@@ -1,0 +1,17 @@
+{
+  "name": "api-client",
+  "version": "0.1.0",
+  "private": true,
+  "license": "UNLICENSED",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "contract": "*",
+    "hono": "^4.6.14"
+  }
+}

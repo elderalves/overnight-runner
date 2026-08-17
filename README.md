@@ -24,10 +24,11 @@ Running a job means invoking the `implement-overnight` skill (and its dependenci
 ```sh
 git clone https://github.com/elderalves/overnight-runner.git
 cd overnight-runner
-npm link
+npm install
+npm link --workspace overnight-runner
 ```
 
-`npm link` puts `overnight-runner` on your `PATH`, backed by [bin/overnight-runner.ts](bin/overnight-runner.ts).
+This is an npm-workspaces monorepo ([ADR 0003](docs/adr/0003-adopt-npm-workspaces-react-vite-frontend-and-hono-backend.md)) — `npm install` at the root resolves all four packages, and `npm link` puts `overnight-runner` on your `PATH`, backed by [packages/overnight-runner/bin/overnight-runner.ts](packages/overnight-runner/bin/overnight-runner.ts).
 
 ## Tutorial: run your first queue
 
@@ -101,6 +102,15 @@ Options:
 
 A job's own `provider:` frontmatter always wins over `--provider`.
 
+## Web interface
+
+```sh
+npm run build -w web   # one-time (and after any packages/web change)
+overnight-runner serve [repo-path] [--port <n>]
+```
+
+Boots a localhost-only browser control plane (no auth, no remote access) fronting the same queue engine as the plain CLI above: watch the queue live, author/edit/delete/duplicate/reset jobs, start/stop/cancel a run, and browse run history and settings. Binds to `127.0.0.1`, defaulting to port `4321` and scanning upward if that's busy. `serve` is purely additive — the one-shot CLI invocation documented above is unaffected.
+
 ## Job files
 
 | Field | Required | Default | Meaning |
@@ -125,7 +135,7 @@ For the full glossary — job status semantics, run outcomes, provider adapters,
 npm test
 ```
 
-Type-checks the project (`tsc --noEmit`) and runs [test/smoke.ts](test/smoke.ts) against temporary repos — no target repo or provider CLI required.
+Type-checks `packages/overnight-runner` (`tsc --noEmit`) and runs [packages/overnight-runner/test/smoke.ts](packages/overnight-runner/test/smoke.ts) against temporary repos — no target repo or provider CLI required. Run `npm run typecheck -w web` (or `-w contract` / `-w api-client`) to type-check the other workspace packages.
 
 ## License
 

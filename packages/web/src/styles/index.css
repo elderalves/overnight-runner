@@ -1,0 +1,129 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import "tailwindcss";
+@import "tw-animate-css";
+
+/*
+  THIS FILE IS THE ONLY PLACE RAW HEX MAY APPEAR. Ported from the validated
+  cockpit-visual-design-prototype.html, dark-only -- no `.light` block, no
+  accent/density switching. See design-tokens-component-mapping.md.
+*/
+:root {
+  --background: #0d0d0d;
+  --foreground: #ffffff;
+  --card: #171717;
+  --card-2: #1c1c1c;
+  --sidebar: #171717;
+  --muted: #262626;
+  --muted-foreground: #a3a3a3;
+  --soft-foreground: #7b7b7b;
+  --border: #262626;
+  --input: #262626;
+
+  --primary: #a8f372;
+  --primary-foreground: #0d0d0d;
+  --ring: #a8f372;
+
+  --success: #10b981;
+  --pending: #fbbf24;
+  --danger: #ef4444;
+  --violet: #8f86e8;
+  /* Chip's "chained" isolation tone -- distinct from violet's "worktree"/
+     RUNNING tone. See design-tokens-component-mapping.md. */
+  --chained: #93c5fd;
+
+  /* Shadcn-conventional names the copied components/ui/*.tsx files
+     reference -- aliased onto the palette above, not new visual roles. */
+  --popover: var(--card);
+  --popover-foreground: var(--foreground);
+  --accent: var(--muted);
+  --accent-foreground: var(--foreground);
+  --destructive: var(--danger);
+  --destructive-foreground: #ffffff;
+
+  --sans: 'Inter', system-ui, sans-serif;
+  --mono: 'JetBrains Mono', ui-monospace, monospace;
+}
+
+/* Real Tailwind utilities *and* var()-usable -- radius/shadow share
+   Tailwind's own namespace keys, so declaring them here both defines the CSS
+   var and wires the utility (rounded-lg, shadow-md) in one shot. */
+@theme static {
+  --radius-*: initial;
+  --radius-sm: 8px;
+  --radius: 10px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+
+  --shadow-*: initial;
+  --shadow-xs: 0 1px 2px 0 rgba(10, 13, 20, 0.03);
+  --shadow-sm: 0 2px 4px 0 rgba(27, 28, 29, 0.04);
+  --shadow-md: 0 16px 32px -12px rgba(14, 18, 27, 0.1);
+  --shadow-modal: 0 16px 48px 0 rgba(0, 0, 0, 0.45);
+}
+
+/* `inline` so Tailwind emits var(--x) in the generated utility -- e.g.
+   bg-card always tracks --card, no dark: variant needed anywhere. */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--foreground);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-soft-foreground: var(--soft-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-ring: var(--ring);
+
+  --color-success: var(--success);
+  --color-pending: var(--pending);
+  --color-danger: var(--danger);
+  --color-violet: var(--violet);
+  --color-chained: var(--chained);
+
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+
+  --font-sans: var(--sans);
+  --font-mono: var(--mono);
+
+  --radius-md: var(--radius);
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    margin: 0;
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--muted);
+    border-radius: 99px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}

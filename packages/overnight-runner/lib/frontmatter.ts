@@ -100,4 +100,20 @@ function writeStatus(filePath: string, status: string): void {
   fs.writeFileSync(filePath, newRaw);
 }
 
-export { readJobFile, writeStatus, identityFor };
+// Writes a whole job file from scratch -- used by the browser CRUD API
+// (lib/jobsApi.ts) for create/edit, where the full field set is always
+// known and there's no existing body/formatting to preserve piecemeal
+// (contrast writeStatus, which patches one field in an otherwise-untouched
+// file). Falsy frontmatter values are omitted rather than written as empty.
+function writeJobFile(filePath: string, frontmatter: Frontmatter, body: string): void {
+  const lines = ['---'];
+  for (const [key, value] of Object.entries(frontmatter)) {
+    if (!value) continue;
+    lines.push(`${key}: ${value}`);
+  }
+  lines.push('---', '');
+  const normalizedBody = body.endsWith('\n') ? body : `${body}\n`;
+  fs.writeFileSync(filePath, lines.join('\n') + normalizedBody);
+}
+
+export { readJobFile, writeStatus, writeJobFile, identityFor };
