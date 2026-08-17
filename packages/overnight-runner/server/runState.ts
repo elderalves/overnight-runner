@@ -1,8 +1,10 @@
+import path from 'node:path';
 import * as runner from '../lib/runner.ts';
 import type { RunUpdateEvent } from '../lib/runner.ts';
 import { loadQueue } from '../lib/queue.ts';
 import type { Job } from '../lib/queue.ts';
 import { toWireJob } from '../lib/wireJob.ts';
+import { currentBranch } from '../lib/git.ts';
 import type {
   Job as WireJob,
   SnapshotEvent,
@@ -48,6 +50,7 @@ interface JobOutcomeSnapshot {
 // in-memory job list.
 class ServeState {
   private repoPath: string;
+  private repoName: string;
   private currentRun: InternalRun | null = null;
   private outcomes = new Map<string, JobOutcomeSnapshot>();
   private listeners = new Set<Listener>();
@@ -56,6 +59,7 @@ class ServeState {
 
   constructor(repoPath: string) {
     this.repoPath = repoPath;
+    this.repoName = path.basename(repoPath);
   }
 
   getQueue(): WireJob[] {
@@ -89,6 +93,10 @@ class ServeState {
             lines: this.currentRun.lines,
           }
         : null,
+      // Read live rather than cached: unlike baseBranch (fixed for a run's
+      // lifetime), the target repo's checked-out branch can change between
+      // snapshots (a new SSE connection) with no run in progress at all.
+      repo: { name: this.repoName, branch: currentBranch(this.repoPath) },
     };
   }
 

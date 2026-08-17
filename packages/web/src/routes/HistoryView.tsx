@@ -2,7 +2,9 @@ import { useState } from 'react';
 import type { JobDisplayStatus } from 'contract';
 import { useRun, useRuns } from '@/api/queries';
 import { StatusPill } from '@/components/StatusPill';
+import { CodeBadge } from '@/components/CodeBadge';
 import { cn } from '@/lib/utils';
+import { TD_BASE, TH_BASE } from '@/lib/table';
 
 const COLUMNS = ['Job', 'Status', 'Duration', 'Isolation', 'Branch', 'Provider', 'Commit', 'Notes'];
 
@@ -54,33 +56,35 @@ function HistoryRow({ id, status, totals, open, onToggle }: HistoryRowProps) {
       </button>
       {open && detail && (
         <div className="border-t border-border px-3.5 pt-2 pb-3">
-          <table className="w-full border-collapse text-xs">
-            <thead>
-              <tr className="text-left text-soft-foreground">
-                {COLUMNS.map((col) => (
-                  <th key={col} className="border-b border-border px-2 py-1 font-semibold">
-                    {col}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {detail.jobs.map((row) => (
-                <tr key={row.job}>
-                  <td className="border-b border-border px-2 py-1 font-mono">{row.job}</td>
-                  <td className="border-b border-border px-2 py-1">
-                    <StatusPill status={row.status as JobDisplayStatus} />
-                  </td>
-                  <td className="border-b border-border px-2 py-1 font-mono text-muted-foreground">{row.duration || '—'}</td>
-                  <td className="border-b border-border px-2 py-1">{row.isolation}</td>
-                  <td className="border-b border-border px-2 py-1 font-mono text-muted-foreground">{row.branchProduced || '—'}</td>
-                  <td className="border-b border-border px-2 py-1">{row.provider}</td>
-                  <td className="border-b border-border px-2 py-1 font-mono text-muted-foreground">{row.commitRef || '—'}</td>
-                  <td className="border-b border-border px-2 py-1">{row.notes}</td>
+          <div className="overflow-x-auto rounded-lg border border-border bg-card shadow-xs">
+            <table className="w-full border-collapse text-xs">
+              <thead>
+                <tr>
+                  {COLUMNS.map((col) => (
+                    <th key={col} className={TH_BASE}>
+                      {col}
+                    </th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="[&>tr:last-child>td]:border-b-0">
+                {detail.jobs.map((row) => (
+                  <tr key={row.job} className="hover:bg-muted">
+                    <td className={cn(TD_BASE, 'font-mono')}>{row.job}</td>
+                    <td className={TD_BASE}>
+                      <StatusPill status={row.status as JobDisplayStatus} />
+                    </td>
+                    <td className={cn(TD_BASE, 'font-mono text-muted-foreground')}>{row.duration || '—'}</td>
+                    <td className={TD_BASE}>{row.isolation}</td>
+                    <td className={TD_BASE}>{row.branchProduced ? <CodeBadge>{row.branchProduced}</CodeBadge> : '—'}</td>
+                    <td className={TD_BASE}>{row.provider}</td>
+                    <td className={cn(TD_BASE, 'font-mono text-muted-foreground')}>{row.commitRef || '—'}</td>
+                    <td className={cn(TD_BASE, 'h-auto min-h-11 whitespace-normal py-2')}>{row.notes}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>

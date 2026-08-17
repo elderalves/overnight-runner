@@ -4,8 +4,10 @@ import { useServeState } from '@/api/events';
 import { useComposer } from '@/components/ComposerContext';
 import { StatusPill } from '@/components/StatusPill';
 import { Chip } from '@/components/Chip';
+import { CodeBadge } from '@/components/CodeBadge';
 import { JobDetail } from '@/components/JobDetail';
 import { buttonClass, cn } from '@/lib/utils';
+import { TD_BASE, TH_BASE } from '@/lib/table';
 import { client } from '@/api/client';
 
 function formatDuration(ms?: number): string {
@@ -54,95 +56,92 @@ function QueueView() {
   return (
     <div className="flex min-h-0 flex-1">
       <div className="flex-[1.4] overflow-auto p-4">
-        <table className="w-full border-collapse text-sm">
-          <thead>
-            <tr className="text-left text-[10.5px] tracking-wide text-soft-foreground uppercase">
-              {COLUMNS.map((col) => (
-                <th key={col} className="border-b border-border px-2.5 py-2 font-medium whitespace-nowrap">
-                  {col}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {queue.map((job) => (
-              <tr
-                key={job.identity}
-                onClick={() => setSelected(job.identity)}
-                className={cn('cursor-pointer hover:bg-muted', selectedJob?.identity === job.identity && 'bg-violet/10')}
-              >
-                <td className="border-b border-border px-2.5 py-2 whitespace-nowrap">
-                  <StatusPill status={job.displayStatus} />
-                </td>
-                <td className="max-w-[220px] truncate border-b border-border px-2.5 py-2 font-mono text-xs" title={job.identity}>
-                  {job.identity}
-                </td>
-                <td className="border-b border-border px-2.5 py-2 whitespace-nowrap">
-                  <Chip tone={isolationTone(job.isolation)}>{job.isolation}</Chip>
-                </td>
-                <td className="border-b border-border px-2.5 py-2 whitespace-nowrap">
-                  {job.provider ? <Chip tone="neutral">{job.provider}</Chip> : <span className="text-soft-foreground">—</span>}
-                </td>
-                <td
-                  className="max-w-[140px] truncate border-b border-border px-2.5 py-2 font-mono text-xs text-muted-foreground"
-                  title={job.branchProduced}
-                >
-                  {job.branchProduced || '—'}
-                </td>
-                <td className="border-b border-border px-2.5 py-2 font-mono text-xs whitespace-nowrap text-muted-foreground">
-                  {formatDuration(job.duration)}
-                </td>
-                <td className="border-b border-border px-2.5 py-2 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                  <div className="flex justify-end gap-0.5">
-                    {job.status === 'blocked' && (
-                      <button
-                        title="Reset to pending"
-                        aria-label="Reset to pending"
-                        className={cn(buttonClass('ghost', 'sm'), 'w-7 px-0')}
-                        onClick={() => handleReset(job.identity)}
-                      >
-                        <RotateCcw className="size-3.5" />
-                      </button>
-                    )}
-                    {job.status !== 'done' && (
-                      <button
-                        title="Edit"
-                        aria-label="Edit"
-                        className={cn(buttonClass('ghost', 'sm'), 'w-7 px-0')}
-                        onClick={() => openComposer('edit', job)}
-                      >
-                        <Pencil className="size-3.5" />
-                      </button>
-                    )}
-                    <button
-                      title="Duplicate"
-                      aria-label="Duplicate"
-                      className={cn(buttonClass('ghost', 'sm'), 'w-7 px-0')}
-                      onClick={() => openComposer('duplicate', job)}
-                    >
-                      <Copy className="size-3.5" />
-                    </button>
-                    <button
-                      title={armedDelete === job.identity ? 'Click again to confirm' : 'Delete'}
-                      aria-label="Delete"
-                      className={cn(buttonClass('ghost', 'sm'), 'w-7 px-0', armedDelete === job.identity && 'bg-danger/15 text-danger')}
-                      onClick={() => handleDelete(job.identity)}
-                    >
-                      <Trash2 className="size-3.5" />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-            {queue.length === 0 && (
+        <div className="overflow-x-auto rounded-lg border border-border bg-card shadow-xs">
+          <table className="w-full border-collapse">
+            <thead>
               <tr>
-                <td colSpan={COLUMNS.length} className="px-2.5 py-8 text-center text-sm text-soft-foreground">
-                  No jobs yet — click "+ New job" to add one.
-                </td>
+                {COLUMNS.map((col) => (
+                  <th key={col} className={TH_BASE}>
+                    {col}
+                  </th>
+                ))}
               </tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="[&>tr:last-child>td]:border-b-0">
+              {queue.map((job) => (
+                <tr
+                  key={job.identity}
+                  onClick={() => setSelected(job.identity)}
+                  className={cn('cursor-pointer hover:bg-muted', selectedJob?.identity === job.identity && 'bg-violet/10')}
+                >
+                  <td className={TD_BASE}>
+                    <StatusPill status={job.displayStatus} />
+                  </td>
+                  <td className={cn(TD_BASE, 'max-w-[220px] truncate font-mono text-xs')} title={job.identity}>
+                    {job.identity}
+                  </td>
+                  <td className={TD_BASE}>
+                    <Chip tone={isolationTone(job.isolation)}>{job.isolation}</Chip>
+                  </td>
+                  <td className={TD_BASE}>
+                    {job.provider ? <Chip tone="neutral">{job.provider}</Chip> : <span className="text-soft-foreground">—</span>}
+                  </td>
+                  <td className={cn(TD_BASE, 'max-w-[140px] truncate')} title={job.branchProduced}>
+                    {job.branchProduced ? <CodeBadge>{job.branchProduced}</CodeBadge> : <span className="text-soft-foreground">—</span>}
+                  </td>
+                  <td className={cn(TD_BASE, 'font-mono text-xs text-muted-foreground')}>{formatDuration(job.duration)}</td>
+                  <td className={TD_BASE} onClick={(e) => e.stopPropagation()}>
+                    <div className="flex justify-end gap-0.5">
+                      {job.status === 'blocked' && (
+                        <button
+                          title="Reset to pending"
+                          aria-label="Reset to pending"
+                          className={cn(buttonClass('ghost', 'sm'), 'w-7 px-0')}
+                          onClick={() => handleReset(job.identity)}
+                        >
+                          <RotateCcw className="size-3.5" />
+                        </button>
+                      )}
+                      {job.status !== 'done' && (
+                        <button
+                          title="Edit"
+                          aria-label="Edit"
+                          className={cn(buttonClass('ghost', 'sm'), 'w-7 px-0')}
+                          onClick={() => openComposer('edit', job)}
+                        >
+                          <Pencil className="size-3.5" />
+                        </button>
+                      )}
+                      <button
+                        title="Duplicate"
+                        aria-label="Duplicate"
+                        className={cn(buttonClass('ghost', 'sm'), 'w-7 px-0')}
+                        onClick={() => openComposer('duplicate', job)}
+                      >
+                        <Copy className="size-3.5" />
+                      </button>
+                      <button
+                        title={armedDelete === job.identity ? 'Click again to confirm' : 'Delete'}
+                        aria-label="Delete"
+                        className={cn(buttonClass('ghost', 'sm'), 'w-7 px-0', armedDelete === job.identity && 'bg-danger/15 text-danger')}
+                        onClick={() => handleDelete(job.identity)}
+                      >
+                        <Trash2 className="size-3.5" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {queue.length === 0 && (
+                <tr>
+                  <td colSpan={COLUMNS.length} className="px-4 py-8 text-center text-sm text-soft-foreground">
+                    No jobs yet — click "+ New job" to add one.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <div className="flex-1 overflow-auto border-l border-border p-4">

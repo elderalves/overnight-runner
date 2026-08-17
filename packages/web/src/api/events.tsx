@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import type {
   Job,
   RunState,
+  RepoIdentity,
   SnapshotEvent,
   QueueUpdatedEvent,
   RunStartedEvent,
@@ -28,9 +29,12 @@ interface ServeState {
   // snapshot doesn't backfill it) -- an accepted gap, same shape as
   // server-architecture.md's own documented ones.
   runningJob: RunningJob | null;
+  // Null until the first snapshot arrives -- the sidebar chip is simply
+  // absent rather than showing an invented repo name.
+  repo: RepoIdentity | null;
 }
 
-const EMPTY_STATE: ServeState = { queue: [], run: null, connected: false, runningJob: null };
+const EMPTY_STATE: ServeState = { queue: [], run: null, connected: false, runningJob: null, repo: null };
 
 const ServeStateContext = createContext<ServeState | null>(null);
 
@@ -65,7 +69,7 @@ function ServeStateProvider({ children }: { children: ReactNode }) {
 
       source.addEventListener('snapshot', (e) => {
         const data: SnapshotEvent = JSON.parse((e as MessageEvent).data);
-        setState({ queue: data.queue, run: data.run, connected: true, runningJob: null });
+        setState({ queue: data.queue, run: data.run, connected: true, runningJob: null, repo: data.repo });
       });
 
       source.addEventListener('queue-updated', (e) => {

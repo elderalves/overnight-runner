@@ -1,3 +1,4 @@
+import { History, ListChecks, Settings as SettingsIcon } from 'lucide-react';
 import { NavLink, Outlet, useLocation } from 'react-router';
 import type { JobDisplayStatus } from 'contract';
 import { useServeState } from '@/api/events';
@@ -7,9 +8,9 @@ import { buttonClass, cn } from '@/lib/utils';
 import { client } from '@/api/client';
 
 const NAV = [
-  { to: '/', label: 'Queue' },
-  { to: '/history', label: 'History' },
-  { to: '/settings', label: 'Settings' },
+  { to: '/', label: 'Queue', icon: ListChecks },
+  { to: '/history', label: 'History', icon: History },
+  { to: '/settings', label: 'Settings', icon: SettingsIcon },
 ];
 
 const DOT_CLASS: Record<JobDisplayStatus, string> = {
@@ -26,7 +27,7 @@ const DOT_CLASS: Record<JobDisplayStatus, string> = {
 // main content area -- the winning "App Shell" IA from
 // cockpit-visual-design.md's round-1 grilling.
 function AppShell() {
-  const { queue, run } = useServeState();
+  const { queue, run, repo } = useServeState();
   const { request, openComposer, closeComposer } = useComposer();
   const location = useLocation();
 
@@ -48,6 +49,11 @@ function AppShell() {
       <aside className="flex w-[210px] flex-none flex-col border-r border-border bg-sidebar">
         <div className="flex items-center gap-2 px-3.5 py-3.5 text-sm font-semibold">
           <span>overnight-runner</span>
+          {repo ? (
+            <span className="ml-auto truncate font-mono text-[11px] font-medium text-soft-foreground">
+              {repo.name} / {repo.branch}
+            </span>
+          ) : null}
         </div>
         <nav className="flex flex-col gap-0.5 px-2.5">
           {NAV.map((item) => (
@@ -57,11 +63,12 @@ function AppShell() {
               end={item.to === '/'}
               className={({ isActive }) =>
                 cn(
-                  'rounded-md px-2.5 py-2 text-left text-[13px] font-medium text-muted-foreground hover:bg-muted hover:text-foreground',
+                  'flex items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-[13px] font-medium text-muted-foreground hover:bg-muted hover:text-foreground',
                   isActive && 'bg-muted font-semibold text-foreground'
                 )
               }
             >
+              <item.icon className="size-4 shrink-0" aria-hidden="true" />
               {item.label}
             </NavLink>
           ))}

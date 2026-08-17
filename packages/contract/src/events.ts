@@ -11,9 +11,15 @@ export interface RunState {
   lines: string[];
 }
 
+export interface RepoIdentity {
+  name: string;
+  branch: string;
+}
+
 export interface SnapshotEvent {
   queue: Job[];
   run: RunState | null;
+  repo: RepoIdentity;
 }
 
 export interface QueueUpdatedEvent {

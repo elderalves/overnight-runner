@@ -9,6 +9,7 @@ import { loadQueue } from '../lib/queue.ts';
 import { parseResult, buildPrompt } from '../lib/providers.ts';
 import * as runSummary from '../lib/runSummary.ts';
 import * as progress from '../lib/progress.ts';
+import { ServeState } from '../server/runState.ts';
 
 let failures = 0;
 
@@ -158,6 +159,19 @@ test('a validation-blocked job status is persisted back to disk', () => {
   loadQueue(dir);
   const { frontmatter } = readJobFile(path.join(dir, 'jobs', '01-chained.md'));
   assert.strictEqual(frontmatter.status, 'blocked');
+});
+
+// --- serve state / snapshot ---
+
+test('getSnapshot reports the target repo\'s folder name and live current branch', () => {
+  const dir = tmpRepo();
+  // A concrete, known branch name -- not one re-derived via the function
+  // under test -- so a broken currentBranch() can't pass by construction.
+  execFileSync('git', ['-C', dir, 'checkout', '-q', '-B', 'feature/preview']);
+  const state = new ServeState(dir);
+  const snapshot = state.getSnapshot();
+  assert.strictEqual(snapshot.repo.name, path.basename(dir));
+  assert.strictEqual(snapshot.repo.branch, 'feature/preview');
 });
 
 // --- provider adapter ---

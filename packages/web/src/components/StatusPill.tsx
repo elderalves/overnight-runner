@@ -26,11 +26,11 @@ function StatusPill({ status, className }: StatusPillProps) {
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground',
+        'inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-muted px-2.5 py-[3px] text-xs font-medium text-muted-foreground',
         className
       )}
     >
-      <span className={cn('size-1.5 shrink-0 rounded-full', tone.dot, tone.pulse && 'animate-pulse')} />
+      <span className={cn('size-[7px] shrink-0 rounded-full', tone.dot, tone.pulse && 'animate-pulse')} />
       {tone.label}
     </span>
   );
