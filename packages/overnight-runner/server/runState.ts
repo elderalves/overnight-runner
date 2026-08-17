@@ -9,6 +9,9 @@ import type {
   QueueUpdatedEvent,
   RunStartedEvent,
   JobStartedEvent,
+  JobPhaseChangedEvent,
+  JobActivityNoteEvent,
+  JobActivityEvent,
   JobFinishedEvent,
   JobSkippedEvent,
   RunCompleteEvent,
@@ -38,6 +41,13 @@ interface JobOutcomeSnapshot {
   branchProduced?: string;
   commitRef?: string;
   atStatus: string;
+  // Live-only -- patched independently of the outcome fields above by
+  // patchOutcome(), and implicitly cleared whenever recordOutcome() next
+  // rebuilds this snapshot from scratch (job-started, job-finished): see
+  // CONTEXT.md's "Phase" / "Activity note" / "Activity".
+  currentPhase?: string;
+  lastActivityNote?: { text: string; at: string };
+  lastActivity?: { file: string; changedCount: number };
 }
 
 // The in-process run-state/broadcast manager -- one instance per
@@ -71,6 +81,9 @@ class ServeState {
           providerUsed: snap.providerUsed,
           branchProduced: snap.branchProduced,
           commitRef: snap.commitRef,
+          currentPhase: snap.currentPhase,
+          lastActivityNote: snap.lastActivityNote,
+          lastActivity: snap.lastActivity,
         },
         true
       );
@@ -142,6 +155,16 @@ class ServeState {
     this.currentRun?.lines.push(text);
   }
 
+  // Merges into an already-recorded outcome snapshot -- a no-op if
+  // job-started hasn't recorded one yet (shouldn't happen: it always fires
+  // first). Never creates a snapshot on its own, so it can't race ahead of
+  // recordOutcome()'s atStatus bookkeeping.
+  private patchOutcome(identity: string, patch: Partial<JobOutcomeSnapshot>): void {
+    const existing = this.outcomes.get(identity);
+    if (!existing) return;
+    this.outcomes.set(identity, { ...existing, ...patch });
+  }
+
   private recordOutcome(job: Job): void {
     this.outcomes.set(job.identity, {
       outcome: job.outcome,
@@ -188,6 +211,27 @@ class ServeState {
           line: event.line,
         };
         this.broadcast('job-started', payload);
+        break;
+      }
+      case 'job-phase-changed': {
+        this.line(event.line);
+        this.patchOutcome(event.identity, { currentPhase: event.phase });
+        const payload: JobPhaseChangedEvent = { identity: event.identity, phase: event.phase, line: event.line };
+        this.broadcast('job-phase-changed', payload);
+        break;
+      }
+      case 'job-activity-note': {
+        this.line(event.line);
+        this.patchOutcome(event.identity, { lastActivityNote: { text: event.note, at: event.at } });
+        const payload: JobActivityNoteEvent = { identity: event.identity, note: event.note, at: event.at, line: event.line };
+        this.broadcast('job-activity-note', payload);
+        break;
+      }
+      case 'job-activity': {
+        this.line(event.line);
+        this.patchOutcome(event.identity, { lastActivity: { file: event.file, changedCount: event.changedCount } });
+        const payload: JobActivityEvent = { identity: event.identity, file: event.file, changedCount: event.changedCount, line: event.line };
+        this.broadcast('job-activity', payload);
         break;
       }
       case 'job-finished': {

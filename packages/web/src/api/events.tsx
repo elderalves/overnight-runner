@@ -7,6 +7,9 @@ import type {
   QueueUpdatedEvent,
   RunStartedEvent,
   JobStartedEvent,
+  JobPhaseChangedEvent,
+  JobActivityNoteEvent,
+  JobActivityEvent,
   JobFinishedEvent,
   JobSkippedEvent,
 } from 'contract';
@@ -89,6 +92,28 @@ function ServeStateProvider({ children }: { children: ReactNode }) {
         }));
       });
 
+      source.addEventListener('job-phase-changed', (e) => {
+        const data: JobPhaseChangedEvent = JSON.parse((e as MessageEvent).data);
+        setState((prev) => appendLine(patchJob(prev, data.identity, { currentPhase: data.phase }), data.line));
+      });
+
+      source.addEventListener('job-activity-note', (e) => {
+        const data: JobActivityNoteEvent = JSON.parse((e as MessageEvent).data);
+        setState((prev) =>
+          appendLine(patchJob(prev, data.identity, { lastActivityNote: { text: data.note, at: data.at } }), data.line)
+        );
+      });
+
+      source.addEventListener('job-activity', (e) => {
+        const data: JobActivityEvent = JSON.parse((e as MessageEvent).data);
+        setState((prev) =>
+          appendLine(
+            patchJob(prev, data.identity, { lastActivity: { file: data.file, changedCount: data.changedCount } }),
+            data.line
+          )
+        );
+      });
+
       source.addEventListener('job-finished', (e) => {
         const data: JobFinishedEvent = JSON.parse((e as MessageEvent).data);
         setState((prev) => ({
@@ -100,6 +125,12 @@ function ServeStateProvider({ children }: { children: ReactNode }) {
               commitRef: data.commitRef,
               providerUsed: data.providerUsed,
               duration: data.duration,
+              // Live-only signals -- cleared the moment the job stops running,
+              // matching runState.ts's recordOutcome() clearing them
+              // server-side too. See CONTEXT.md's "Phase" / "Activity note".
+              currentPhase: undefined,
+              lastActivityNote: undefined,
+              lastActivity: undefined,
             }),
             data.line
           ),

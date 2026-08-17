@@ -50,4 +50,24 @@ function formatFinished(job: Pick<Job, 'identity' | 'outcome' | 'duration'>, { p
   return `[${position}/${total}] ${job.identity} ${job.outcome} in ${duration}${suffix}`;
 }
 
-export { formatKickoff, formatSkip, formatStarted, formatHeartbeat, formatFinished };
+// Printed live, the moment implement-overnight self-reports entering one of
+// its 8 fixed loop steps via OVERNIGHT_PHASE -- see CONTEXT.md's "Phase".
+function formatPhase(job: Pick<Job, 'identity'>, { position, total }: QueuePosition, phase: string): string {
+  return `[${position}/${total}] ${job.identity} phase: ${phase}`;
+}
+
+// Printed live for a skill-authored OVERNIGHT_NOTE checkpoint -- see
+// CONTEXT.md's "Activity note". The runner never interprets `note`, only
+// timestamps and forwards it, same as OVERNIGHT_RESULT's REASON text.
+function formatNote(job: Pick<Job, 'identity'>, { position, total }: QueuePosition, note: string): string {
+  return `[${position}/${total}] ${job.identity} — ${note}`;
+}
+
+// Printed live for the generic worktree-activity fallback -- see
+// CONTEXT.md's "Activity".
+function formatActivity(job: Pick<Job, 'identity'>, { position, total }: QueuePosition, info: { file: string; changedCount: number }): string {
+  const suffix = info.changedCount > 1 ? ` (+${info.changedCount - 1} more)` : '';
+  return `[${position}/${total}] ${job.identity} touched ${info.file}${suffix}`;
+}
+
+export { formatKickoff, formatSkip, formatStarted, formatHeartbeat, formatFinished, formatPhase, formatNote, formatActivity };

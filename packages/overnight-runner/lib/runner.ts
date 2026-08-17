@@ -42,6 +42,9 @@ export type RunCompleteReason = 'natural' | 'stopped' | 'cancelled' | 'inline-bl
 export type RunUpdateEvent =
   | { type: 'run-started'; runId: string; jobCount: number; baseBranch: string; provider?: string; line: string }
   | { type: 'job-started'; job: Job; queuePosition: progress.QueuePosition; timeoutMs: number; startedAt: string; line: string }
+  | { type: 'job-phase-changed'; identity: string; phase: string; line: string }
+  | { type: 'job-activity-note'; identity: string; note: string; at: string; line: string }
+  | { type: 'job-activity'; identity: string; file: string; changedCount: number; line: string }
   | { type: 'job-skipped'; job: Job; queuePosition: progress.QueuePosition; line: string }
   | { type: 'job-blocked-at-load'; job: Job; queuePosition: progress.QueuePosition; line: string }
   | { type: 'job-finished'; job: Job; queuePosition: progress.QueuePosition; stopping: boolean; line: string }
@@ -108,7 +111,7 @@ async function run(
     runSummary.write(summaryPath, state);
     onUpdate?.({ type: 'job-started', job, queuePosition, timeoutMs: effectiveTimeoutMs, startedAt, line: startedLine });
 
-    const stop = await executeJob(repoPath, baseBranch, job, defaultProvider, timeoutMs, logsDir, queuePosition, control?.signal);
+    const stop = await executeJob(repoPath, baseBranch, job, defaultProvider, timeoutMs, logsDir, queuePosition, onUpdate, control?.signal);
     runSummary.write(summaryPath, state);
     const finishedLine = progress.formatFinished(job, queuePosition, stop);
     console.log(finishedLine);
@@ -140,6 +143,7 @@ async function executeJob(
   timeoutMs: number | undefined,
   logsDir: string,
   queuePosition: progress.QueuePosition,
+  onUpdate: ((event: RunUpdateEvent) => void) | undefined,
   signal?: AbortSignal
 ): Promise<boolean> {
   const effectiveProvider = job.provider || defaultProvider;
@@ -172,6 +176,21 @@ async function executeJob(
       signal,
       onHeartbeat: (elapsedMs, effectiveTimeoutMs) => {
         console.log(progress.formatHeartbeat(job, queuePosition, elapsedMs, effectiveTimeoutMs));
+      },
+      onPhase: (phase) => {
+        const line = progress.formatPhase(job, queuePosition, phase);
+        console.log(line);
+        onUpdate?.({ type: 'job-phase-changed', identity: job.identity, phase, line });
+      },
+      onNote: (note) => {
+        const line = progress.formatNote(job, queuePosition, note);
+        console.log(line);
+        onUpdate?.({ type: 'job-activity-note', identity: job.identity, note, at: new Date().toISOString(), line });
+      },
+      onActivity: (info) => {
+        const line = progress.formatActivity(job, queuePosition, info);
+        console.log(line);
+        onUpdate?.({ type: 'job-activity', identity: job.identity, file: info.file, changedCount: info.changedCount, line });
       },
     });
     job.duration = Date.now() - startTime;
