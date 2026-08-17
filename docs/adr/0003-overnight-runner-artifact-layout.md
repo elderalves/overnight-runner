@@ -1,0 +1,15 @@
+# Consolidate target-repo artifacts under `.overnight-runner/`, self-ignored
+
+`overnight-runner` writes `jobs/`, `runs/`, `.worktrees/`, and `.overnight-runner-settings.json` into whatever repo it's pointed at — a repo the tool doesn't own and may be any shared/team repo, not just its own. That rules out any mechanism for keeping these artifacts untracked that assumes write access to, or knowledge of the current contents of, that repo's own root `.gitignore`. All four are now consolidated under a single `.overnight-runner/` directory, which drops its own `.overnight-runner/.gitignore` containing just `*` the first time it's created — the directory ignores its own contents, so the target repo's own `.gitignore` is never read or edited. A pre-existing flat layout is auto-migrated into the new location the first time the runner is pointed at a repo that still has one, since an in-flight pending job's `status:` frontmatter is the only record of queue progress and silently orphaning it would break resumability. `.worktrees/` is excluded from migration: `isolation.teardown()` removes it after every job regardless of outcome, so nothing of value is normally at rest there, and blindly moving a leftover would desync git's own worktree registration (`.git/worktrees/<name>/gitdir`).
+
+## Considered options
+
+- **Self-contained nested `.gitignore` (chosen).** Works identically whether or not the target repo has a `.gitignore` at all, and never risks corrupting or duplicating entries in a file that belongs to a repo this tool doesn't control. Leaves exactly one tracked file, `.overnight-runner/.gitignore`, in a target repo that never runs the migration path (i.e. a fresh install).
+- **Append `.overnight-runner/` to the target repo's root `.gitignore`.** Rejected: requires idempotent-append logic (dedupe check, create-if-missing), and edits a file whose ownership and existing structure belong entirely to the target repo, not to this tool.
+- **Auto-migrate a pre-existing flat layout (chosen)** over refusing to run until the user manually moves it. The move is mechanical and safe (skip-and-warn on any collision, per below), so blocking would only add friction for zero benefit.
+- **Skip-and-warn on migration collision (chosen)** over overwriting either path when both the old flat path and the new `.overnight-runner/...` path exist for the same artifact. Neither side is clobbered; the new location is what the updated code reads from regardless, so the run still proceeds — only that one artifact is left for the user to reconcile by hand.
+
+## Consequences
+
+- Every target repo the runner has ever run against needs no action from its owner beyond upgrading `overnight-runner` itself — migration and self-ignoring both happen automatically on next run.
+- A target repo that ran an older `overnight-runner` and separately gitignored the old flat `jobs/`/`runs/`/`.worktrees/`/`.overnight-runner-settings.json` paths by hand now has stale, harmless entries in its own `.gitignore` — cleaning those up is left to that repo's owner, not automated by this tool.
