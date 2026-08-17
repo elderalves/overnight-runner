@@ -2,11 +2,12 @@
 import path from 'node:path';
 import * as runner from '../lib/runner.ts';
 import { ADAPTERS, DEFAULT_TIMEOUT_MS } from '../lib/providers.ts';
+import { migrate } from '../lib/migrate.ts';
 
 function printHelp(): void {
   console.log(`overnight-runner [repo-path] [options]
 
-Runs the jobs/*.md queue in the target repo, one fresh agent session per job
+Runs the .overnight-runner/jobs/*.md queue in the target repo, one fresh agent session per job
 (via the "implement-overnight" skill), checkpointed with git commits.
 
 Arguments:
@@ -148,6 +149,7 @@ async function main(): Promise<void> {
   }
 
   const repoPath = path.resolve(args.repo);
+  migrate(repoPath);
   const summaryPath = await runner.run(repoPath, {
     defaultProvider: args.provider,
     timeoutMs: args.timeoutMinutes * 60000,

@@ -5,6 +5,7 @@ import { writeJobFile, writeStatus } from './frontmatter.ts';
 import { loadQueue } from './queue.ts';
 import { ADAPTERS } from './providers.ts';
 import { toWireJob } from './wireJob.ts';
+import { jobsDir } from './paths.ts';
 
 // Thrown by every function below; the Hono route layer catches this shape
 // directly and maps it onto api-endpoint-contract.md's HTTP status codes --
@@ -33,10 +34,6 @@ function notFound(message: string): never {
 
 const SLUG_PATTERN = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/;
 const ISOLATION_MODES: IsolationMode[] = ['inline', 'worktree', 'chained'];
-
-function jobsDir(repoPath: string): string {
-  return path.join(repoPath, 'jobs');
-}
 
 // Shared field validation for create and edit -- slug format/uniqueness is
 // create-only (checked by the caller), everything else applies to both.

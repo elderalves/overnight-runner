@@ -6,6 +6,7 @@ import { historyRoutes } from './routes/history.ts';
 import { settingsRoutes } from './routes/settings.ts';
 import { ServeState } from './runState.ts';
 import { createStaticUi } from './staticUi.ts';
+import { migrate } from '../lib/migrate.ts';
 
 // The return type is INFERRED on purpose -- it's the chained app type built
 // at the bottom of this function, and AppType (server/appType.ts) is
@@ -13,6 +14,7 @@ import { createStaticUi } from './staticUi.ts';
 // route from the type Hono's `hc<AppType>()` client needs.
 // See server-architecture.md's "Route structure".
 function createApp(repoPath: string) {
+  migrate(repoPath);
   const state = new ServeState(repoPath);
   const staticUi = createStaticUi();
 

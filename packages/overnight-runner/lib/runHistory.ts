@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { RunHistoryDetail, RunHistoryRow, RunHistorySummary } from 'contract';
+import { runsDir } from './paths.ts';
 
 // Reverses runSummary.ts's write() -- same column order (Job/Status/Duration/
 // Isolation mode/Branch produced/Provider/Commit ref/Notes), same `\|`
@@ -66,10 +67,6 @@ function parseRunSummary(id: string, content: string): RunHistoryDetail {
 }
 
 const SAFE_ID = /^[\w.-]+$/;
-
-function runsDir(repoPath: string): string {
-  return path.join(repoPath, 'runs');
-}
 
 function listRuns(repoPath: string): RunHistorySummary[] {
   const dir = runsDir(repoPath);

@@ -9,6 +9,7 @@ import { loadQueue } from '../lib/queue.ts';
 import { parseResult, buildPrompt } from '../lib/providers.ts';
 import * as runSummary from '../lib/runSummary.ts';
 import * as progress from '../lib/progress.ts';
+import { migrate } from '../lib/migrate.ts';
 import { ServeState } from '../server/runState.ts';
 
 let failures = 0;
@@ -32,7 +33,7 @@ function tmpRepo(): string {
   fs.writeFileSync(path.join(dir, 'README.md'), '# test\n');
   execFileSync('git', ['-C', dir, 'add', '.']);
   execFileSync('git', ['-C', dir, 'commit', '-q', '-m', 'init']);
-  fs.mkdirSync(path.join(dir, 'jobs'));
+  fs.mkdirSync(path.join(dir, '.overnight-runner', 'jobs'), { recursive: true });
   return dir;
 }
 
@@ -40,7 +41,7 @@ function writeJob(dir: string, file: string, frontmatter: Record<string, string>
   const lines = ['---'];
   for (const [k, v] of Object.entries(frontmatter)) lines.push(`${k}: ${v}`);
   lines.push('---', '');
-  fs.writeFileSync(path.join(dir, 'jobs', file), lines.join('\n') + body);
+  fs.writeFileSync(path.join(dir, '.overnight-runner', 'jobs', file), lines.join('\n') + body);
 }
 
 // --- frontmatter ---
@@ -157,7 +158,7 @@ test('a validation-blocked job status is persisted back to disk', () => {
   const dir = tmpRepo();
   writeJob(dir, '01-chained.md', { isolation: 'chained', chain_from: 'missing' });
   loadQueue(dir);
-  const { frontmatter } = readJobFile(path.join(dir, 'jobs', '01-chained.md'));
+  const { frontmatter } = readJobFile(path.join(dir, '.overnight-runner', 'jobs', '01-chained.md'));
   assert.strictEqual(frontmatter.status, 'blocked');
 });
 
@@ -172,6 +173,66 @@ test('getSnapshot reports the target repo\'s folder name and live current branch
   const snapshot = state.getSnapshot();
   assert.strictEqual(snapshot.repo.name, path.basename(dir));
   assert.strictEqual(snapshot.repo.branch, 'feature/preview');
+});
+
+// --- migrate ---
+
+function captureConsole(fn: () => void): { logs: string[]; errors: string[] } {
+  const logs: string[] = [];
+  const errors: string[] = [];
+  const originalLog = console.log;
+  const originalError = console.error;
+  console.log = (msg?: unknown) => { logs.push(String(msg)); };
+  console.error = (msg?: unknown) => { errors.push(String(msg)); };
+  try {
+    fn();
+    return { logs, errors };
+  } finally {
+    console.log = originalLog;
+    console.error = originalError;
+  }
+}
+
+test('migrate moves a pre-existing flat layout into .overnight-runner/ and prints a notice', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'overnight-runner-migrate-'));
+  fs.mkdirSync(path.join(dir, 'jobs'));
+  fs.writeFileSync(path.join(dir, 'jobs', '01-a.md'), 'a\n');
+  fs.mkdirSync(path.join(dir, 'runs'));
+  fs.writeFileSync(path.join(dir, 'runs', '2026-01-01-0000.md'), 'run\n');
+  fs.writeFileSync(path.join(dir, '.overnight-runner-settings.json'), '{}\n');
+
+  const { logs } = captureConsole(() => migrate(dir));
+
+  assert.strictEqual(fs.readFileSync(path.join(dir, '.overnight-runner', 'jobs', '01-a.md'), 'utf8'), 'a\n');
+  assert.strictEqual(fs.readFileSync(path.join(dir, '.overnight-runner', 'runs', '2026-01-01-0000.md'), 'utf8'), 'run\n');
+  assert.strictEqual(fs.readFileSync(path.join(dir, '.overnight-runner', 'settings.json'), 'utf8'), '{}\n');
+  assert.ok(!fs.existsSync(path.join(dir, 'jobs')));
+  assert.ok(!fs.existsSync(path.join(dir, 'runs')));
+  assert.ok(!fs.existsSync(path.join(dir, '.overnight-runner-settings.json')));
+  assert.strictEqual(fs.readFileSync(path.join(dir, '.overnight-runner', '.gitignore'), 'utf8'), '*\n');
+  assert.ok(logs.some((l) => l.includes('Migrated jobs, runs, .overnight-runner-settings.json into .overnight-runner/')));
+});
+
+test('migrate only creates the self-ignoring folder when there is nothing to migrate', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'overnight-runner-migrate-'));
+  const { logs } = captureConsole(() => migrate(dir));
+  assert.strictEqual(fs.readFileSync(path.join(dir, '.overnight-runner', '.gitignore'), 'utf8'), '*\n');
+  assert.strictEqual(logs.length, 0);
+});
+
+test('migrate leaves a conflicting old path in place and warns instead of clobbering', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'overnight-runner-migrate-'));
+  fs.mkdirSync(path.join(dir, 'jobs'));
+  fs.writeFileSync(path.join(dir, 'jobs', 'old.md'), 'old\n');
+  fs.mkdirSync(path.join(dir, '.overnight-runner', 'jobs'), { recursive: true });
+  fs.writeFileSync(path.join(dir, '.overnight-runner', 'jobs', 'new.md'), 'new\n');
+
+  const { logs, errors } = captureConsole(() => migrate(dir));
+
+  assert.strictEqual(fs.readFileSync(path.join(dir, 'jobs', 'old.md'), 'utf8'), 'old\n');
+  assert.strictEqual(fs.readFileSync(path.join(dir, '.overnight-runner', 'jobs', 'new.md'), 'utf8'), 'new\n');
+  assert.ok(errors.some((e) => e.includes('both "jobs" and ".overnight-runner/jobs" exist')));
+  assert.strictEqual(logs.length, 0);
 });
 
 // --- provider adapter ---

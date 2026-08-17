@@ -9,6 +9,7 @@ import type { IsolationResult } from './isolation.ts';
 import * as runSummary from './runSummary.ts';
 import type { Run } from './runSummary.ts';
 import * as progress from './progress.ts';
+import { runsDir } from './paths.ts';
 
 function runId(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');
@@ -59,8 +60,8 @@ async function run(
   const baseBranch = git.currentBranch(repoPath);
   const started = new Date();
   const id = runId(started);
-  const summaryPath = path.join(repoPath, 'runs', `${id}.md`);
-  const logsDir = path.join(repoPath, 'runs', id, 'logs');
+  const summaryPath = path.join(runsDir(repoPath), `${id}.md`);
+  const logsDir = path.join(runsDir(repoPath), id, 'logs');
 
   const jobs = loadQueue(repoPath);
   const kickoffLine = progress.formatKickoff(id, jobs, baseBranch);
