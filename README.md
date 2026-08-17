@@ -117,7 +117,7 @@ A job's own `provider:` frontmatter always wins over `--provider`.
 - **worktree** — runs in a fresh git worktree on a new `overnight/<identity>` branch; the base branch is untouched.
 - **chained** — runs on the branch a specific earlier job produced (via `chain_from`), extending that branch's lineage.
 
-For the full glossary — job status semantics, run outcomes, provider adapters, and more — see [CONTEXT.md](CONTEXT.md).
+For the full glossary — job status semantics, run outcomes, provider adapters, and more — see [CONTEXT.md](CONTEXT.md). For where this project is headed next, see [ROADMAP.md](ROADMAP.md).
 
 ## Development
 
