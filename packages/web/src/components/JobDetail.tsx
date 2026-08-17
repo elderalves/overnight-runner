@@ -54,10 +54,21 @@ function JobDetail({ job, run, runningJob }: JobDetailProps) {
           <StatusPill status={job.displayStatus} />
           <Chip tone={isolationTone(job.isolation)}>{job.isolation}</Chip>
           {job.provider && <Chip tone="neutral">{job.provider}</Chip>}
+          {isActive && job.currentPhase && <Chip tone="neutral">{job.currentPhase}</Chip>}
         </div>
       </div>
 
       {isActive && <Heartbeat startedAt={runningJob.startedAt} timeoutMs={runningJob.timeoutMs} />}
+
+      {/* Live-only: what the agent is doing right now. Prefers the skill's
+          own self-reported note over the generic file-touch fallback when
+          both are available -- see CONTEXT.md's "Activity note" / "Activity". */}
+      {isActive && job.lastActivityNote && (
+        <p className="text-xs text-muted-foreground">{job.lastActivityNote.text}</p>
+      )}
+      {isActive && !job.lastActivityNote && job.lastActivity && (
+        <p className="text-xs text-muted-foreground">last touched {job.lastActivity.file}</p>
+      )}
 
       {job.notes && <p className="text-xs text-muted-foreground">{job.notes}</p>}
 

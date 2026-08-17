@@ -39,4 +39,21 @@ function worktreeRemove(repoPath: string, worktreeDir: string): void {
   }
 }
 
-export { currentBranch, branchExists, shortRef, worktreeAddNew, worktreeAddExisting, worktreeRemove };
+// Deliberately not routed through git() above: callers here (an activity
+// poll) expect frequent, silent failure (a non-git cwd, a worktree
+// mid-teardown race) and must never leak git's own stderr into the runner's
+// own output the way an uncaught git() failure would.
+function statusPorcelain(repoPath: string): string[] {
+  let output: string;
+  try {
+    output = execFileSync('git', ['-C', repoPath, 'status', '--porcelain'], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    });
+  } catch {
+    return [];
+  }
+  return output.split('\n').filter((line) => line.trim().length > 0);
+}
+
+export { currentBranch, branchExists, shortRef, worktreeAddNew, worktreeAddExisting, worktreeRemove, statusPorcelain };

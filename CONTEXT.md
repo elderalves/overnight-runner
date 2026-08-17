@@ -28,6 +28,10 @@ _Avoid_: repo (ambiguous between this and the runner's own repo), working repo
 The branch the run itself started on — what you were on when you kicked off the run, in the target repo.
 _Avoid_: main branch, target branch
 
+**Configured base branch**:
+An optional saved preference for which branch future worktree jobs fork from and Git views compare against. When unset, the runner follows the checked-out branch. It does not make inline jobs switch branches before they run.
+_Avoid_: base branch (that is the per-run fact), target branch, main branch
+
 **Provider**:
 A supported coding-agent CLI: Claude Code, Codex, or Copilot CLI.
 _Avoid_: agent, model, tool
@@ -50,6 +54,17 @@ _Avoid_: log line (the per-job log file is a separate, raw-output artifact); not
 
 **Heartbeat**:
 A progress line printed periodically while a job's provider CLI process is still running with no output of its own — reports elapsed time and time remaining until the job's `--timeout`. Cadence is a runner-internal tuning value, not a domain fact — see [Progress feedback during queue execution](.alves/issues/progress-feedback-during-run.md) for the current interval.
+
+**Phase**:
+Which of `implement-overnight`'s 8 fixed loop steps (read, pin, implement, test, review, fix, retest, finalize) a job's session currently reports being in, self-reported via the `OVERNIGHT_PHASE:` line — the same "thin runner" contract as OVERNIGHT_RESULT: a bounded, well-known marker, never the surrounding prose. Live-only — present while the job is RUNNING this server session, cleared the moment it finishes, never persisted to a run summary.
+_Avoid_: step (ambiguous with a handoff's own per-file steps or a job-body checklist item, neither of which the runner knows about — an Activity note is how those surface instead); progress line (that term is reserved for the runner's own lifecycle narration, not a skill's self-report)
+
+**Activity note**:
+A short, freeform, skill-authored checkpoint string self-reported via the `OVERNIGHT_NOTE:` line — the runner never interprets it, only timestamps and forwards it, same as OVERNIGHT_RESULT's REASON text. This is how finer-than-Phase detail (e.g. "starting handoff step 2/4") reaches the runner without the runner ever needing to know what a handoff or a checklist is. Live-only, same lifetime as Phase.
+
+**Activity**:
+A generic, skill-agnostic fallback: the most recently changed file in a running job's own worktree, detected by polling `git status --porcelain`. Reports even when a job never emits a Phase or an Activity note. Live-only, same lifetime as Phase.
+_Avoid_: heartbeat (a heartbeat carries no content of its own; this always names a file)
 
 **Migration notice**:
 A one-line message printed the first time `overnight-runner` finds a target repo's job/run artifacts in the old flat layout (`jobs/`, `runs/`, `.overnight-runner-settings.json` at the repo root) and moves them under `.overnight-runner/`. Printed once, before any run's own kickoff — not scoped to a run, so it is distinct from a progress line.

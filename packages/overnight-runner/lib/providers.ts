@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
+import * as git from './git.ts';
 
 export interface Adapter {
   skillToken: string;
@@ -33,6 +34,10 @@ const ADAPTERS: Record<string, Adapter> = {
 
 const DEFAULT_TIMEOUT_MS = 60 * 60 * 1000;
 const HEARTBEAT_INTERVAL_MS = 5 * 60 * 1000;
+// A few seconds, per the design conversation behind CONTEXT.md's "Activity" --
+// tight enough that a stalled-looking job doesn't sit quiet, loose enough
+// that a `git status` shell-out per running job stays cheap.
+const ACTIVITY_INTERVAL_MS = 4 * 1000;
 
 function adapterFor(providerName: string | undefined): Adapter {
   const adapter = providerName === undefined ? undefined : ADAPTERS[providerName];
@@ -88,6 +93,85 @@ function parseResult(stdout: string, exitCode: number | null): ParsedResult {
   return { result, reason };
 }
 
+const PHASE_LINE = /^OVERNIGHT_PHASE:\s*(.+)$/;
+const NOTE_LINE = /^OVERNIGHT_NOTE:\s*(.+)$/;
+
+export interface SentinelMatch {
+  type: 'phase' | 'note';
+  value: string;
+}
+
+// Recognizes exactly the two live-progress sentinels, same "thin runner"
+// contract as OVERNIGHT_RESULT/REASON above: a bounded, well-known marker,
+// never the surrounding prose. Exported for unit testing.
+function matchSentinelLine(line: string): SentinelMatch | null {
+  const phase = line.match(PHASE_LINE);
+  if (phase) return { type: 'phase', value: phase[1]!.trim() };
+  const note = line.match(NOTE_LINE);
+  if (note) return { type: 'note', value: note[1]!.trim() };
+  return null;
+}
+
+// Buffers a still-running child process's stdout chunks into complete lines
+// as they arrive, so sentinels can be scanned live instead of only once at
+// close (OVERNIGHT_RESULT's own full-buffer scan in parseResult() is
+// untouched -- this is additive). Exported for unit testing.
+class LineBuffer {
+  private pending = '';
+
+  push(chunk: string): string[] {
+    this.pending += chunk;
+    const parts = this.pending.split('\n');
+    this.pending = parts.pop() ?? '';
+    return parts;
+  }
+
+  // Call once the source has ended: whatever's left wasn't newline-terminated
+  // but is still a complete final line (e.g. the child's very last write, with
+  // no trailing newline before exit) -- without this, that line would never
+  // be scanned for a sentinel.
+  flush(): string[] {
+    if (!this.pending) return [];
+    const last = this.pending;
+    this.pending = '';
+    return [last];
+  }
+}
+
+// Tracks the last-reported ActivityInfo so an unchanged poll never re-fires --
+// see ACTIVITY_INTERVAL_MS's comment. Exported for unit testing.
+class ActivityTracker {
+  private last: ActivityInfo | null = null;
+
+  // Returns info only the first time it's seen (a new top file from `git
+  // status`, or the changed-file count moves); null on a repeat or a clean
+  // tree.
+  report(info: ActivityInfo | null): ActivityInfo | null {
+    if (!info) return null;
+    if (info.file === this.last?.file && info.changedCount === this.last?.changedCount) return null;
+    this.last = info;
+    return info;
+  }
+}
+
+export interface ActivityInfo {
+  file: string;
+  changedCount: number;
+}
+
+// Generic, skill-agnostic liveness fallback: the most recently listed
+// changed/untracked file in the job's own worktree, per `git status
+// --porcelain`. Works for any job regardless of whether it emits any
+// sentinel at all. Returns null on a clean tree or a git failure (e.g. cwd
+// removed mid-teardown race). Exported for unit testing.
+function detectActivity(cwd: string): ActivityInfo | null {
+  const lines = git.statusPorcelain(cwd);
+  if (lines.length === 0) return null;
+  // Porcelain format is "XY path" (or "XY orig -> path" for renames) --
+  // strip the two-status-char + space prefix.
+  return { file: lines[0]!.slice(3).trim(), changedCount: lines.length };
+}
+
 export interface ProviderResult {
   result: 'PASS' | 'BLOCKED';
   reason: string;
@@ -112,8 +196,19 @@ function runProvider(
     timeoutMs,
     logPath,
     onHeartbeat,
+    onPhase,
+    onNote,
+    onActivity,
     signal,
-  }: { timeoutMs?: number; logPath?: string; onHeartbeat?: (elapsedMs: number, timeoutMs: number) => void; signal?: AbortSignal } = {}
+  }: {
+    timeoutMs?: number;
+    logPath?: string;
+    onHeartbeat?: (elapsedMs: number, timeoutMs: number) => void;
+    onPhase?: (phase: string) => void;
+    onNote?: (note: string) => void;
+    onActivity?: (info: ActivityInfo) => void;
+    signal?: AbortSignal;
+  } = {}
 ): Promise<ProviderResult> {
   const adapter = adapterFor(providerName);
   const effectiveTimeout = timeoutMs || DEFAULT_TIMEOUT_MS;
@@ -148,12 +243,33 @@ function runProvider(
       ? setInterval(() => onHeartbeat(Date.now() - startedAt, effectiveTimeout), HEARTBEAT_INTERVAL_MS)
       : null;
 
-    child.stdout!.on('data', (chunk) => { stdout += chunk; });
+    const activityTracker = new ActivityTracker();
+    const activityTimer = onActivity
+      ? setInterval(() => {
+          const info = activityTracker.report(detectActivity(cwd));
+          if (info) onActivity(info);
+        }, ACTIVITY_INTERVAL_MS)
+      : null;
+
+    const lineBuffer = new LineBuffer();
+
+    child.stdout!.on('data', (chunk) => {
+      const text = String(chunk);
+      stdout += text;
+      if (!onPhase && !onNote) return;
+      for (const line of lineBuffer.push(text)) {
+        const match = matchSentinelLine(line);
+        if (!match) continue;
+        if (match.type === 'phase') onPhase?.(match.value);
+        else onNote?.(match.value);
+      }
+    });
     child.stderr!.on('data', (chunk) => { stderr += chunk; });
 
     child.on('error', (err) => {
       clearTimeout(timer);
       if (heartbeat) clearInterval(heartbeat);
+      if (activityTimer) clearInterval(activityTimer);
       signal?.removeEventListener('abort', onAbort);
       resolve({ result: 'BLOCKED', reason: `provider process error: ${err.message}`, exitCode: null, stdout, stderr, cancelled: false });
     });
@@ -161,7 +277,17 @@ function runProvider(
     child.on('close', (code) => {
       clearTimeout(timer);
       if (heartbeat) clearInterval(heartbeat);
+      if (activityTimer) clearInterval(activityTimer);
       signal?.removeEventListener('abort', onAbort);
+
+      if (onPhase || onNote) {
+        for (const line of lineBuffer.flush()) {
+          const match = matchSentinelLine(line);
+          if (!match) continue;
+          if (match.type === 'phase') onPhase?.(match.value);
+          else onNote?.(match.value);
+        }
+      }
 
       if (logPath) {
         try {
@@ -191,4 +317,4 @@ function runProvider(
   });
 }
 
-export { ADAPTERS, buildPrompt, parseResult, runProvider, DEFAULT_TIMEOUT_MS };
+export { ADAPTERS, buildPrompt, parseResult, matchSentinelLine, LineBuffer, ActivityTracker, detectActivity, runProvider, DEFAULT_TIMEOUT_MS };

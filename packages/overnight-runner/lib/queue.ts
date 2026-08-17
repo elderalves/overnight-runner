@@ -21,6 +21,11 @@ export interface Job {
   duration?: number;
   branchProduced?: string;
   commitRef?: string;
+  // Live-only, attached at runtime by ServeState -- never set by loadQueue()
+  // itself. See CONTEXT.md's "Phase" / "Activity note" / "Activity".
+  currentPhase?: string;
+  lastActivityNote?: { text: string; at: string };
+  lastActivity?: { file: string; changedCount: number };
 }
 
 // Non-recursive glob of jobs/*.md, lexicographic by filename -- see

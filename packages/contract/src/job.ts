@@ -34,6 +34,12 @@ export interface Job {
   duration?: number;
   branchProduced?: string;
   commitRef?: string;
+  // Live-only (see CONTEXT.md "Phase" / "Activity note"): present only while
+  // this job is the one currently RUNNING this server session; cleared once
+  // it finishes, never persisted to run history.
+  currentPhase?: string;
+  lastActivityNote?: { text: string; at: string };
+  lastActivity?: { file: string; changedCount: number };
 }
 
 export interface JobFields {

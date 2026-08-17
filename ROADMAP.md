@@ -9,39 +9,30 @@ for the decision record behind the current `v0.1.0`.
 
 ## Now
 
-### Progress feedback during queue execution
+### Real-time visibility into what a running job's agent is doing
 
-**Problem:** `overnight-runner /tmp/demo-repo` blocks silently. [bin/overnight-runner.ts](bin/overnight-runner.ts)
-prints nothing until the run finishes — one line, the run summary path. Everything in
-between (each job can run up to `--timeout`, 60 minutes by default) is a live process
-with zero output, which is indistinguishable from a hang.
+**Problem:** The `serve` web UI (added after this roadmap's original "Progress feedback
+during queue execution" item shipped) shows a job as `RUNNING` and a coarse
+started/finished progress line, but nothing in between. For a job whose prompt points
+at an external multi-step plan (e.g. a `handoff`), there's no way to tell which step is
+in progress or whether it's still making progress at all — see
+[CONTEXT.md](CONTEXT.md)'s "Phase" / "Activity note" / "Activity".
 
-**Hypothesis:** Emitting a line per job-lifecycle event (job started, job finished with
-outcome + duration) removes the "is this even running" uncertainty on long queues,
-without turning the runner into something that needs its own UI.
+**Hypothesis:** `implement-overnight` self-reporting two new bounded sentinels —
+`OVERNIGHT_PHASE:` (one of its own 8 fixed loop steps) and `OVERNIGHT_NOTE:` (a short
+freeform checkpoint, emitted at its own discretion) — plus a generic, skill-agnostic
+worktree-activity fallback (`git status --porcelain` polling), gives enough live signal
+to answer "what is it doing, and is it progressing" without reopening the raw-streaming
+question [Progress feedback during queue execution](.alves/issues/progress-feedback-during-run.md)
+already closed. See [ADR 0004](docs/adr/0004-self-reported-progress-sentinels.md).
 
-**How we'll know it worked:** Running a multi-job queue shows visible progress in the
-terminal as it happens, instead of silence followed by one line at the end.
+**How we'll know it worked:** Watching a running job in the `serve` UI shows its current
+phase and periodic activity, instead of only a static "RUNNING" pill and a starting line.
 
-**Rough size:** Small — the event points already exist in [lib/runner.ts](lib/runner.ts)'s
-`run()`/`executeJob()` loop; this is wiring output to transitions that are already
-tracked in the `Job` object, not new state.
-
-**Before implementation starts, this needs its own ticket** (following this repo's own
-`.alves/issues/` convention) to resolve:
-1. **Grain** — a start/finish line per job, vs. streaming the provider CLI's own
-   stdout live, vs. a periodic heartbeat/elapsed-time ticker while a single job is
-   still mid-flight with no output of its own.
-2. **Channel** — print directly to stdout, or point at the job's already-existing
-   per-job log file (`.overnight-runner/runs/<id>/logs/<identity>.log`) for the user to `tail -f`
-   themselves.
-3. **Boundary** — this is progress *during* a run. It's adjacent to but distinct from
-   [Run notification beyond files on disk](.alves/issues/run-notification-beyond-files.md),
-   which closed "no active notification for v1" for run *completion*. That decision
-   isn't being reopened here.
-
-This roadmap entry says *what* and *why*; the *how* (phases, files touched, risks) is
-a separate, not-yet-written implementation plan once the questions above are resolved.
+**Rough size:** Medium — spans `contract`, `lib/providers.ts` (stdout handling changes
+from buffer-then-parse-once to also scanning incrementally), `server/runState.ts`, and
+`web`'s `JobDetail`. The `implement-overnight` skill-side emission is a separate
+deliverable outside this repo.
 
 ## Next
 

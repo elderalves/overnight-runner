@@ -6,7 +6,7 @@ import { execFileSync } from 'node:child_process';
 
 import { readJobFile, writeStatus, identityFor } from '../lib/frontmatter.ts';
 import { loadQueue } from '../lib/queue.ts';
-import { parseResult, buildPrompt } from '../lib/providers.ts';
+import { parseResult, buildPrompt, matchSentinelLine, LineBuffer, ActivityTracker, detectActivity } from '../lib/providers.ts';
 import * as runSummary from '../lib/runSummary.ts';
 import * as runHistory from '../lib/runHistory.ts';
 import * as progress from '../lib/progress.ts';
@@ -263,6 +263,91 @@ test('buildPrompt uses $ for codex and / for claude/copilot', () => {
   assert.strictEqual(buildPrompt('copilot', '/abs/jobs/x.md'), '/implement-overnight /abs/jobs/x.md');
 });
 
+// --- live progress sentinels ---
+
+test('matchSentinelLine recognizes OVERNIGHT_PHASE and OVERNIGHT_NOTE', () => {
+  assert.deepStrictEqual(matchSentinelLine('OVERNIGHT_PHASE: implement'), { type: 'phase', value: 'implement' });
+  assert.deepStrictEqual(matchSentinelLine('OVERNIGHT_NOTE: starting handoff step 2/4'), {
+    type: 'note',
+    value: 'starting handoff step 2/4',
+  });
+});
+
+test('matchSentinelLine ignores unrelated lines', () => {
+  assert.strictEqual(matchSentinelLine('just some prose'), null);
+  assert.strictEqual(matchSentinelLine('OVERNIGHT_RESULT: PASS'), null);
+});
+
+test('matchSentinelLine trims trailing whitespace from the value', () => {
+  assert.deepStrictEqual(matchSentinelLine('OVERNIGHT_PHASE:   test   '), { type: 'phase', value: 'test' });
+});
+
+test('LineBuffer reassembles lines split across chunk boundaries', () => {
+  const buf = new LineBuffer();
+  assert.deepStrictEqual(buf.push('OVERNIGHT_PHA'), []);
+  assert.deepStrictEqual(buf.push('SE: implement\nOVERNIGHT_NOTE: sta'), ['OVERNIGHT_PHASE: implement']);
+  assert.deepStrictEqual(buf.push('rting\n'), ['OVERNIGHT_NOTE: starting']);
+});
+
+test('LineBuffer emits multiple complete lines from one chunk', () => {
+  const buf = new LineBuffer();
+  assert.deepStrictEqual(buf.push('a\nb\nc\n'), ['a', 'b', 'c']);
+});
+
+test('LineBuffer.flush recovers a final line with no trailing newline', () => {
+  const buf = new LineBuffer();
+  assert.deepStrictEqual(buf.push('OVERNIGHT_PHASE: finalize'), []);
+  assert.deepStrictEqual(buf.flush(), ['OVERNIGHT_PHASE: finalize']);
+});
+
+test('LineBuffer.flush is a no-op once already newline-terminated', () => {
+  const buf = new LineBuffer();
+  buf.push('a\n');
+  assert.deepStrictEqual(buf.flush(), []);
+});
+
+test('ActivityTracker reports the first sighting of an activity', () => {
+  const tracker = new ActivityTracker();
+  assert.deepStrictEqual(tracker.report({ file: 'a.ts', changedCount: 1 }), { file: 'a.ts', changedCount: 1 });
+});
+
+test('ActivityTracker suppresses a repeat of the same file and count', () => {
+  const tracker = new ActivityTracker();
+  tracker.report({ file: 'a.ts', changedCount: 1 });
+  assert.strictEqual(tracker.report({ file: 'a.ts', changedCount: 1 }), null);
+});
+
+test('ActivityTracker re-reports once the file or count changes', () => {
+  const tracker = new ActivityTracker();
+  tracker.report({ file: 'a.ts', changedCount: 1 });
+  assert.deepStrictEqual(tracker.report({ file: 'a.ts', changedCount: 2 }), { file: 'a.ts', changedCount: 2 });
+  assert.deepStrictEqual(tracker.report({ file: 'b.ts', changedCount: 2 }), { file: 'b.ts', changedCount: 2 });
+});
+
+test('ActivityTracker passes null through for a clean tree', () => {
+  const tracker = new ActivityTracker();
+  assert.strictEqual(tracker.report(null), null);
+});
+
+test('detectActivity reports the changed file and count on a dirty worktree', () => {
+  const dir = tmpRepo();
+  fs.writeFileSync(path.join(dir, '.overnight-runner', 'jobs', 'scratch.md'), 'x');
+  fs.writeFileSync(path.join(dir, 'README.md'), '# test\nedited\n');
+  const info = detectActivity(dir);
+  assert.ok(info);
+  assert.strictEqual(info!.changedCount, 2);
+});
+
+test('detectActivity returns null on a clean worktree', () => {
+  const dir = tmpRepo();
+  assert.strictEqual(detectActivity(dir), null);
+});
+
+test('detectActivity returns null when cwd is not a git repo', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'overnight-runner-not-a-repo-'));
+  assert.strictEqual(detectActivity(dir), null);
+});
+
 // --- run summary ---
 
 test('run summary renders totals and per-job rows', () => {
@@ -301,9 +386,9 @@ test('run summary renders a RUNNING row with a static duration cell and counts i
 
 test('run summary round-trips the ended timestamp through history parsing', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'overnight-runner-summary-ended-'));
-  fs.mkdirSync(path.join(dir, 'runs'), { recursive: true });
+  fs.mkdirSync(path.join(dir, '.overnight-runner', 'runs'), { recursive: true });
   const jobs = [{ identity: 'a', isolation: 'inline', initialStatus: 'pending', outcome: 'PASS' as const, duration: 1000 }];
-  runSummary.write(path.join(dir, 'runs', '2026-08-16-2200.md'), {
+  runSummary.write(path.join(dir, '.overnight-runner', 'runs', '2026-08-16-2200.md'), {
     runStatus: 'complete',
     started: '2026-08-16T22:00:00.000Z',
     ended: '2026-08-16T22:10:00.000Z',
@@ -318,8 +403,8 @@ test('run summary round-trips the ended timestamp through history parsing', () =
 
 test('an in-progress run summary round-trips an empty ended field', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'overnight-runner-summary-inprogress-'));
-  fs.mkdirSync(path.join(dir, 'runs'), { recursive: true });
-  runSummary.write(path.join(dir, 'runs', '2026-08-16-2201.md'), {
+  fs.mkdirSync(path.join(dir, '.overnight-runner', 'runs'), { recursive: true });
+  runSummary.write(path.join(dir, '.overnight-runner', 'runs', '2026-08-16-2201.md'), {
     runStatus: 'in-progress',
     started: '2026-08-16T22:00:00.000Z',
     baseBranch: 'main',
@@ -391,6 +476,26 @@ test('formatFinished reports outcome and duration with no suffix for a non-inlin
 test('formatFinished appends the stopping-run suffix only when the run is halting', () => {
   const line = progress.formatFinished({ identity: '04-x', outcome: 'BLOCKED', duration: 220000 }, { position: 4, total: 5 }, true);
   assert.strictEqual(line, '[4/5] 04-x BLOCKED in 3m40s — stopping run (inline BLOCKED halts the queue)');
+});
+
+test('formatPhase names position and the self-reported phase token', () => {
+  const line = progress.formatPhase({ identity: '01-x' }, { position: 1, total: 2 }, 'review');
+  assert.strictEqual(line, '[1/2] 01-x phase: review');
+});
+
+test('formatNote forwards the skill-authored note text verbatim', () => {
+  const line = progress.formatNote({ identity: '01-x' }, { position: 1, total: 2 }, 'starting handoff step 2/4');
+  assert.strictEqual(line, '[1/2] 01-x — starting handoff step 2/4');
+});
+
+test('formatActivity reports the touched file with no suffix for a single change', () => {
+  const line = progress.formatActivity({ identity: '01-x' }, { position: 1, total: 2 }, { file: 'src/foo.ts', changedCount: 1 });
+  assert.strictEqual(line, '[1/2] 01-x touched src/foo.ts');
+});
+
+test('formatActivity appends a "+N more" suffix when other files also changed', () => {
+  const line = progress.formatActivity({ identity: '01-x' }, { position: 1, total: 2 }, { file: 'src/foo.ts', changedCount: 3 });
+  assert.strictEqual(line, '[1/2] 01-x touched src/foo.ts (+2 more)');
 });
 
 if (failures > 0) {
