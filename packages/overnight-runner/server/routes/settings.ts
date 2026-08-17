@@ -3,8 +3,9 @@ import { validator } from 'hono/validator';
 import type { Settings } from 'contract';
 import { readSettings, writeSettings } from '../../lib/settings.ts';
 
-// GET/PUT /api/settings -- persisted to a gitignored JSON file at the target
-// repo's root. See api-endpoint-contract.md's "Settings".
+// GET/PUT /api/settings -- persisted to a gitignored JSON file under the
+// target repo's .overnight-runner/ directory. See api-endpoint-contract.md's
+// "Settings".
 function settingsRoutes(repoPath: string) {
   return new Hono()
     .get('/', (c) => c.json(readSettings(repoPath)))

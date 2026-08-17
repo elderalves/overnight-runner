@@ -44,11 +44,11 @@ git commit -q --allow-empty -m "init"
 
 ### 2. Write your first job
 
-Jobs live in a `jobs/` directory at the root of the target repo, one Markdown file per job.
+Jobs live in a `.overnight-runner/jobs/` directory at the root of the target repo, one Markdown file per job. `overnight-runner` creates `.overnight-runner/` itself (with its own `.gitignore`, so it's never tracked in the target repo) the first time it runs against a repo, and migrates an older flat `jobs/`/`runs/` layout into it automatically if one is found.
 
 ```sh
-mkdir jobs
-cat > jobs/01-add-editorconfig.md <<'EOF'
+mkdir -p .overnight-runner/jobs
+cat > .overnight-runner/jobs/01-add-editorconfig.md <<'EOF'
 ---
 status: pending
 isolation: inline
@@ -69,7 +69,7 @@ The YAML frontmatter is the job's configuration; the body is the spec the agent 
 overnight-runner /tmp/demo-repo
 ```
 
-This loads every `jobs/*.md` file in order and, for each pending one, spawns a fresh provider CLI session running `/implement-overnight jobs/01-add-editorconfig.md`.
+This loads every `.overnight-runner/jobs/*.md` file in order and, for each pending one, spawns a fresh provider CLI session running `/implement-overnight .overnight-runner/jobs/01-add-editorconfig.md`.
 
 **If you have `implement-overnight` installed** for the provider you're using, that session actually implements the checklist, tests it, reviews it, and commits it.
 
@@ -77,9 +77,9 @@ This loads every `jobs/*.md` file in order and, for each pending one, spawns a f
 
 ### 4. Read the results
 
-- **`runs/<timestamp>.md`** — the run summary: a totals line plus one row per job (status, duration, isolation mode, branch produced, provider, commit ref, notes).
-- **`jobs/01-add-editorconfig.md`** — its `status:` frontmatter is flipped to `done` or `blocked`, and any checklist items completed before a crash stay checked off so a retry resumes instead of restarting.
-- **`runs/<timestamp>/logs/01-add-editorconfig.log`** — the raw stdout/stderr from that job's provider CLI session.
+- **`.overnight-runner/runs/<timestamp>.md`** — the run summary: a totals line plus one row per job (status, duration, isolation mode, branch produced, provider, commit ref, notes).
+- **`.overnight-runner/jobs/01-add-editorconfig.md`** — its `status:` frontmatter is flipped to `done` or `blocked`, and any checklist items completed before a crash stay checked off so a retry resumes instead of restarting.
+- **`.overnight-runner/runs/<timestamp>/logs/01-add-editorconfig.log`** — the raw stdout/stderr from that job's provider CLI session.
 
 ### 5. Next steps
 

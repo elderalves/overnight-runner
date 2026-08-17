@@ -33,7 +33,7 @@ tracked in the `Job` object, not new state.
    stdout live, vs. a periodic heartbeat/elapsed-time ticker while a single job is
    still mid-flight with no output of its own.
 2. **Channel** — print directly to stdout, or point at the job's already-existing
-   per-job log file (`runs/<id>/logs/<identity>.log`) for the user to `tail -f`
+   per-job log file (`.overnight-runner/runs/<id>/logs/<identity>.log`) for the user to `tail -f`
    themselves.
 3. **Boundary** — this is progress *during* a run. It's adjacent to but distinct from
    [Run notification beyond files on disk](.alves/issues/run-notification-beyond-files.md),

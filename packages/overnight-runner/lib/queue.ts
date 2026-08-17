@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { readJobFile, writeStatus, identityFor } from './frontmatter.ts';
+import { jobsDir as jobsDirFor } from './paths.ts';
 
 export interface Job {
   file: string;
@@ -26,7 +27,7 @@ export interface Job {
 // .alves/issues/queue-format-and-failure-policy.md. A jobs/backlog/ subfolder of
 // drafts is naturally excluded since readdirSync + isFile() never descends.
 function loadQueue(repoPath: string): Job[] {
-  const jobsDir = path.join(repoPath, 'jobs');
+  const jobsDir = jobsDirFor(repoPath);
   if (!fs.existsSync(jobsDir)) return [];
 
   const files = fs

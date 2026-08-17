@@ -2,13 +2,6 @@
 .conductor/
 node_modules/
 
-# Per-repo overnight-runner artifacts (this repo doubles as a target repo for its own smoke tests).
-# jobs/ and runs/ stay untracked everywhere the runner points, per jobs-runs-git-tracking.md.
-jobs/
-runs/
-.worktrees/
-.overnight-runner-settings.json
-
 # packages/web's Vite build output, read at runtime by packages/overnight-runner/server/staticUi.ts.
 packages/web/dist/
 

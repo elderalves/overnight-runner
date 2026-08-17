@@ -1,6 +1,7 @@
 import path from 'node:path';
 import * as git from './git.ts';
 import type { Job } from './queue.ts';
+import { rootDir } from './paths.ts';
 
 export interface IsolationOk {
   cwd: string;
@@ -32,7 +33,7 @@ function setup(repoPath: string, job: Job, baseBranch: string): IsolationResult 
       if (git.branchExists(repoPath, branch)) {
         return { blocked: `branch "${branch}" already exists` };
       }
-      const worktreeDir = path.join(repoPath, '.worktrees', job.identity);
+      const worktreeDir = path.join(rootDir(repoPath), 'worktrees', job.identity);
       git.worktreeAddNew(repoPath, worktreeDir, branch, baseBranch);
       return { cwd: worktreeDir, branchProduced: branch, worktreeDir };
     }
@@ -43,7 +44,7 @@ function setup(repoPath: string, job: Job, baseBranch: string): IsolationResult 
       // Non-null: a chained job with no resolvedBranch is always blocked during
       // validateChains and skipped before the runner ever reaches here.
       const branch = job.resolvedBranch!;
-      const worktreeDir = path.join(repoPath, '.worktrees', job.identity);
+      const worktreeDir = path.join(rootDir(repoPath), 'worktrees', job.identity);
       git.worktreeAddExisting(repoPath, worktreeDir, branch);
       return { cwd: worktreeDir, branchProduced: branch, worktreeDir };
     }

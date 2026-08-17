@@ -1,8 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { Settings } from 'contract';
+import { rootDir } from './paths.ts';
 
-const SETTINGS_FILENAME = '.overnight-runner-settings.json';
+const SETTINGS_FILENAME = 'settings.json';
 
 const DEFAULT_SETTINGS: Settings = {
   defaultProvider: 'claude',
@@ -11,7 +12,7 @@ const DEFAULT_SETTINGS: Settings = {
 };
 
 function settingsPath(repoPath: string): string {
-  return path.join(repoPath, SETTINGS_FILENAME);
+  return path.join(rootDir(repoPath), SETTINGS_FILENAME);
 }
 
 // Read at `serve` startup and on every GET -- an in-memory-only setting would
@@ -27,7 +28,9 @@ function readSettings(repoPath: string): Settings {
 }
 
 function writeSettings(repoPath: string, settings: Settings): void {
-  fs.writeFileSync(settingsPath(repoPath), JSON.stringify(settings, null, 2) + '\n');
+  const file = settingsPath(repoPath);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, JSON.stringify(settings, null, 2) + '\n');
 }
 
-export { DEFAULT_SETTINGS, readSettings, writeSettings };
+export { settingsPath, DEFAULT_SETTINGS, readSettings, writeSettings };

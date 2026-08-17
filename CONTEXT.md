@@ -21,7 +21,7 @@ One execution of the queue, start to finish.
 _Avoid_: session (a session is a single agent's conversational context, scoped to one job)
 
 **Target repo**:
-The repo `overnight-runner` runs a queue against — `repo-path` on the CLI, defaulting to the current directory. Distinct from the runner's own repo, except when developing `overnight-runner` itself, where the two are the same and `jobs/`/`runs/` stay gitignored so dogfooding doesn't leak into the runner's own history.
+The repo `overnight-runner` runs a queue against — `repo-path` on the CLI, defaulting to the current directory. Distinct from the runner's own repo, except when developing `overnight-runner` itself, where the two are the same and `.overnight-runner/` stays gitignored (via its own nested `.gitignore`) so dogfooding doesn't leak into the runner's own history.
 _Avoid_: repo (ambiguous between this and the runner's own repo), working repo
 
 **Base branch**:
@@ -50,6 +50,10 @@ _Avoid_: log line (the per-job log file is a separate, raw-output artifact); not
 
 **Heartbeat**:
 A progress line printed periodically while a job's provider CLI process is still running with no output of its own — reports elapsed time and time remaining until the job's `--timeout`. Cadence is a runner-internal tuning value, not a domain fact — see [Progress feedback during queue execution](.alves/issues/progress-feedback-during-run.md) for the current interval.
+
+**Migration notice**:
+A one-line message printed the first time `overnight-runner` finds a target repo's job/run artifacts in the old flat layout (`jobs/`, `runs/`, `.overnight-runner-settings.json` at the repo root) and moves them under `.overnight-runner/`. Printed once, before any run's own kickoff — not scoped to a run, so it is distinct from a progress line.
+_Avoid_: progress line (a progress line always belongs to a specific run; a migration notice precedes and is independent of any run)
 
 **Run summary**:
 The generated, human-facing report of one run's outcome — one file per run — so Michael can review what happened at a glance without it becoming a second source of truth for job status.
