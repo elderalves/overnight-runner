@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { buttonClass } from '@/lib/utils';
 
-const DEFAULTS: Settings = { defaultProvider: 'claude', defaultTimeoutMinutes: 60, defaultIsolation: 'inline' };
+const DEFAULTS: Settings = { defaultProvider: 'claude', defaultTimeoutMinutes: 60, defaultIsolation: 'inline', baseBranch: null };
 
 // Plain stacked form -- no settings sub-navigation at this scale. See
 // cockpit-visual-design.md's "Settings view".

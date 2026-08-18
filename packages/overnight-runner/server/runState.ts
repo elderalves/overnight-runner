@@ -39,6 +39,8 @@ interface JobOutcomeSnapshot {
   providerUsed?: string;
   branchProduced?: string;
   commitRef?: string;
+  jobStartRef?: string;
+  jobEndRef?: string;
   atStatus: string;
 }
 
@@ -75,6 +77,8 @@ class ServeState {
           providerUsed: snap.providerUsed,
           branchProduced: snap.branchProduced,
           commitRef: snap.commitRef,
+          jobStartRef: snap.jobStartRef,
+          jobEndRef: snap.jobEndRef,
         },
         true
       );
@@ -158,6 +162,8 @@ class ServeState {
       providerUsed: job.providerUsed,
       branchProduced: job.branchProduced,
       commitRef: job.commitRef,
+      jobStartRef: job.jobStartRef,
+      jobEndRef: job.jobEndRef,
       atStatus: job.initialStatus,
     });
   }
@@ -208,6 +214,8 @@ class ServeState {
           notes: event.job.notes,
           branchProduced: event.job.branchProduced,
           commitRef: event.job.commitRef,
+          jobStartRef: event.job.jobStartRef,
+          jobEndRef: event.job.jobEndRef,
           providerUsed: event.job.providerUsed,
           stopping: event.stopping,
           line: event.line,

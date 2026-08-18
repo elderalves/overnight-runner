@@ -21,7 +21,11 @@ export type IsolationResult = IsolationOk | IsolationBlocked;
 // Sets up the working directory a job's session runs in, per
 // .alves/issues/isolation-mode-mechanics.md. Returns either
 // { cwd, branchProduced, worktreeDir } or { blocked: <reason> }.
-function setup(repoPath: string, job: Job, baseBranch: string): IsolationResult {
+// `configuredBaseBranch` is the persisted Configured base branch (Git tab) --
+// worktree jobs fork from it when set, else from the run's own checked-out
+// baseBranch. inline jobs never consult it: they always run on whatever
+// branch is checked out when the run starts. See base-branch-configurability.md.
+function setup(repoPath: string, job: Job, baseBranch: string, configuredBaseBranch?: string | null): IsolationResult {
   try {
     if (job.isolation === 'inline') {
       return { cwd: repoPath, branchProduced: '', worktreeDir: null };
@@ -33,7 +37,7 @@ function setup(repoPath: string, job: Job, baseBranch: string): IsolationResult 
         return { blocked: `branch "${branch}" already exists` };
       }
       const worktreeDir = path.join(repoPath, '.worktrees', job.identity);
-      git.worktreeAddNew(repoPath, worktreeDir, branch, baseBranch);
+      git.worktreeAddNew(repoPath, worktreeDir, branch, configuredBaseBranch || baseBranch);
       return { cwd: worktreeDir, branchProduced: branch, worktreeDir };
     }
 

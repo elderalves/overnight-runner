@@ -3,3 +3,4 @@ export type * from './errors.ts';
 export type * from './settings.ts';
 export type * from './history.ts';
 export type * from './events.ts';
+export type * from './git.ts';

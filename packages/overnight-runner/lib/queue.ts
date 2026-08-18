@@ -20,6 +20,10 @@ export interface Job {
   duration?: number;
   branchProduced?: string;
   commitRef?: string;
+  // Full-length start/end refs captured in this job's execution cwd -- see
+  // .alves/issues/overnight-runner-git-feature/per-job-diff-semantics.md.
+  jobStartRef?: string;
+  jobEndRef?: string;
 }
 
 // Non-recursive glob of jobs/*.md, lexicographic by filename -- see

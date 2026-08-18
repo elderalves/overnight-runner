@@ -31,6 +31,26 @@
      RUNNING tone. See design-tokens-component-mapping.md. */
   --chained: #93c5fd;
 
+  /* The diff viewer's line-background tints (components/diff/diff-view.tsx) --
+     a soft overlay for whole added/deleted lines, a stronger one for
+     word-level marks within a changed line. See frontend-git-component-port.md. */
+  --diff-add: color-mix(in srgb, var(--success) 14%, transparent);
+  --diff-del: color-mix(in srgb, var(--danger) 14%, transparent);
+  --diff-add-strong: color-mix(in srgb, var(--success) 32%, transparent);
+  --diff-del-strong: color-mix(in srgb, var(--danger) 32%, transparent);
+
+  /* The ONE Shiki theme's scope->variable mapping (lib/highlighter.ts):
+     keywords violet, strings green, functions/types blue, comments gray,
+     numbers red, punctuation dim, plain text near-foreground. --syn-fn is a
+     one-off blue this file otherwise has no token for. */
+  --syn-key: var(--violet);
+  --syn-str: var(--success);
+  --syn-fn: #7dd3fc;
+  --syn-com: var(--soft-foreground);
+  --syn-num: var(--danger);
+  --syn-punc: var(--muted-foreground);
+  --syn-var: var(--foreground);
+
   /* Shadcn-conventional names the copied components/ui/*.tsx files
      reference -- aliased onto the palette above, not new visual roles. */
   --popover: var(--card);
@@ -85,6 +105,10 @@
   --color-danger: var(--danger);
   --color-violet: var(--violet);
   --color-chained: var(--chained);
+  --color-diff-add: var(--diff-add);
+  --color-diff-del: var(--diff-del);
+  --color-diff-add-strong: var(--diff-add-strong);
+  --color-diff-del-strong: var(--diff-del-strong);
 
   --color-popover: var(--popover);
   --color-popover-foreground: var(--popover-foreground);

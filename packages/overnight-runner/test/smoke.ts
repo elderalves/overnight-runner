@@ -10,6 +10,12 @@ import { parseResult, buildPrompt } from '../lib/providers.ts';
 import * as runSummary from '../lib/runSummary.ts';
 import * as progress from '../lib/progress.ts';
 import { ServeState } from '../server/runState.ts';
+import * as gitInfo from '../server/git/info.ts';
+import * as gitChanges from '../server/git/changes.ts';
+import * as gitBranch from '../server/git/branch.ts';
+import { isSafeGitRef } from '../server/git/refs.ts';
+import { createApp } from '../server/app.ts';
+import * as runner from '../lib/runner.ts';
 
 let failures = 0;
 
@@ -21,6 +27,28 @@ function test(name: string, fn: () => void): void {
     failures++;
     console.error(`FAIL - ${name}`);
     console.error((err as Error).stack || (err as Error).message);
+  }
+}
+
+// Async counterpart to test() -- registers rather than runs, so every case
+// stays declared next to its sync siblings in file order; runAsyncTests()
+// (called once, at the bottom of the file) awaits them in that same order.
+const asyncTests: { name: string; fn: () => Promise<void> }[] = [];
+
+function testAsync(name: string, fn: () => Promise<void>): void {
+  asyncTests.push({ name, fn });
+}
+
+async function runAsyncTests(): Promise<void> {
+  for (const { name, fn } of asyncTests) {
+    try {
+      await fn();
+      console.log(`ok - ${name}`);
+    } catch (err) {
+      failures++;
+      console.error(`FAIL - ${name}`);
+      console.error((err as Error).stack || (err as Error).message);
+    }
   }
 }
 
@@ -41,6 +69,18 @@ function writeJob(dir: string, file: string, frontmatter: Record<string, string>
   for (const [k, v] of Object.entries(frontmatter)) lines.push(`${k}: ${v}`);
   lines.push('---', '');
   fs.writeFileSync(path.join(dir, 'jobs', file), lines.join('\n') + body);
+}
+
+function headRef(dir: string): string {
+  return execFileSync('git', ['-C', dir, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+}
+
+// Writes, stages, and commits one file -- returns the new commit's full sha.
+function commitFile(dir: string, file: string, content: string, message: string): string {
+  fs.writeFileSync(path.join(dir, file), content);
+  execFileSync('git', ['-C', dir, 'add', file]);
+  execFileSync('git', ['-C', dir, 'commit', '-q', '-m', message]);
+  return headRef(dir);
 }
 
 // --- frontmatter ---
@@ -299,6 +339,377 @@ test('formatFinished appends the stopping-run suffix only when the run is haltin
   const line = progress.formatFinished({ identity: '04-x', outcome: 'BLOCKED', duration: 220000 }, { position: 4, total: 5 }, true);
   assert.strictEqual(line, '[4/5] 04-x BLOCKED in 3m40s — stopping run (inline BLOCKED halts the queue)');
 });
+
+// --- git refs (dash guard) ---
+
+test('isSafeGitRef rejects empty and option-like refs', () => {
+  assert.strictEqual(isSafeGitRef(''), false);
+  assert.strictEqual(isSafeGitRef('-x'), false);
+  assert.strictEqual(isSafeGitRef('--upload-pack=x'), false);
+  assert.strictEqual(isSafeGitRef('main'), true);
+});
+
+// --- git/info.ts ---
+
+testAsync('getRepoInfo reports root and branch, and no remote for a local-only repo', async () => {
+  const dir = tmpRepo();
+  const info = await gitInfo.getRepoInfo(dir);
+  assert.ok(info);
+  assert.strictEqual(fs.realpathSync(info!.root), fs.realpathSync(dir));
+  assert.strictEqual(info!.remote, undefined);
+});
+
+testAsync('getRepoInfo returns null outside a git repository', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'overnight-runner-notgit-'));
+  const info = await gitInfo.getRepoInfo(dir);
+  assert.strictEqual(info, null);
+});
+
+testAsync('getStatus reports untracked and modified files', async () => {
+  const dir = tmpRepo();
+  fs.writeFileSync(path.join(dir, 'README.md'), '# test\nchanged\n');
+  fs.writeFileSync(path.join(dir, 'new.txt'), 'new file\n');
+  const status = await gitInfo.getStatus(dir);
+  const byPath = new Map(status.map((s) => [s.path, s.status]));
+  assert.strictEqual(byPath.get('README.md'), 'M');
+  assert.strictEqual(byPath.get('new.txt'), '??');
+});
+
+testAsync('getBranches lists local branches and filters out overnight/ worktree job branches', async () => {
+  const dir = tmpRepo();
+  execFileSync('git', ['-C', dir, 'branch', 'feature/x']);
+  execFileSync('git', ['-C', dir, 'branch', 'overnight/01-a']);
+  const branches = await gitInfo.getBranches(dir);
+  assert.ok(branches.includes('feature/x'));
+  assert.ok(!branches.some((b) => b.startsWith('overnight/')));
+});
+
+testAsync('getLog returns entries newest-first, capped by count', async () => {
+  const dir = tmpRepo();
+  commitFile(dir, 'a.txt', 'a\n', 'add a');
+  commitFile(dir, 'b.txt', 'b\n', 'add b');
+  const log = await gitInfo.getLog(dir, 2);
+  assert.strictEqual(log.length, 2);
+  assert.strictEqual(log[0]!.subject, 'add b');
+  assert.strictEqual(log[1]!.subject, 'add a');
+});
+
+// --- git/changes.ts: pure parsing helpers ---
+
+test('parseNumstatZ parses added, modified, and rename entries', () => {
+  const out = ['1\t0\tnew.txt', '2\t3\tmod.txt', '0\t0\t', 'old.txt', 'new-name.txt'].join('\0');
+  const entries = gitChanges.parseNumstatZ(out);
+  assert.deepStrictEqual(entries, [
+    { adds: 1, dels: 0, binary: false, path: 'new.txt' },
+    { adds: 2, dels: 3, binary: false, path: 'mod.txt' },
+    { adds: 0, dels: 0, binary: false, oldPath: 'old.txt', path: 'new-name.txt' },
+  ]);
+});
+
+test('parseNameStatusZ parses status codes and rename pairs', () => {
+  const out = ['A', 'new.txt', 'M', 'mod.txt', 'R100', 'old.txt', 'new-name.txt'].join('\0');
+  const entries = gitChanges.parseNameStatusZ(out);
+  assert.deepStrictEqual(entries, [
+    { status: 'A', path: 'new.txt' },
+    { status: 'M', path: 'mod.txt' },
+    { status: 'R100', oldPath: 'old.txt', path: 'new-name.txt' },
+  ]);
+});
+
+const TWO_FILE_PATCH = [
+  'diff --git a/one.txt b/one.txt',
+  'index 111..222 100644',
+  '--- a/one.txt',
+  '+++ b/one.txt',
+  '@@ -1 +1 @@',
+  '-old',
+  '+new',
+  'diff --git a/two.txt b/two.txt',
+  'index 333..444 100644',
+  '--- a/two.txt',
+  '+++ b/two.txt',
+  '@@ -1 +1 @@',
+  '-a',
+  '+b',
+  '',
+].join('\n');
+
+test('splitPatch splits a multi-file patch blob into per-file sections in order', () => {
+  const sections = gitChanges.splitPatch(TWO_FILE_PATCH);
+  assert.strictEqual(sections.length, 2);
+  assert.ok(sections[0]!.startsWith('diff --git a/one.txt'));
+  assert.ok(sections[1]!.startsWith('diff --git a/two.txt'));
+});
+
+test('patchByPath maps each section to its new-side path', () => {
+  const sections = gitChanges.splitPatch(TWO_FILE_PATCH);
+  const map = gitChanges.patchByPath(sections);
+  assert.strictEqual(map.size, 2);
+  assert.ok(map.get('one.txt')!.includes('-old'));
+  assert.ok(map.get('two.txt')!.includes('-a'));
+});
+
+// --- git/changes.ts: collectors ---
+
+testAsync('collectWorkingTreeChanges surfaces untracked files without mutating the real index', async () => {
+  const dir = tmpRepo();
+  fs.writeFileSync(path.join(dir, 'untracked.txt'), 'hello\n');
+  const before = execFileSync('git', ['-C', dir, 'status', '--porcelain'], { encoding: 'utf8' });
+  const result = await gitChanges.collectWorkingTreeChanges(dir);
+  assert.ok(result.ok);
+  if (result.ok) {
+    const file = result.changes.files.find((f) => f.path === 'untracked.txt');
+    assert.ok(file, 'untracked file should appear in the working-tree diff');
+    assert.strictEqual(file!.status, 'added');
+  }
+  const after = execFileSync('git', ['-C', dir, 'status', '--porcelain'], { encoding: 'utf8' });
+  assert.strictEqual(before, after, 'a read-only GET must never mutate the real index');
+});
+
+testAsync('collectRangeChanges diffs exactly startRef..endRef, not merge-base or last-commit-only', async () => {
+  const dir = tmpRepo();
+  const startRef = headRef(dir);
+  commitFile(dir, 'a.txt', 'a\n', 'add a');
+  const endRef = commitFile(dir, 'b.txt', 'b\n', 'add b');
+  commitFile(dir, 'c.txt', 'c\n', 'add c (after the captured range)');
+
+  const result = await gitChanges.collectRangeChanges(dir, startRef, endRef);
+  assert.ok(result.ok);
+  if (result.ok) {
+    const paths = result.changes.files.map((f) => f.path).sort();
+    assert.deepStrictEqual(paths, ['a.txt', 'b.txt']);
+  }
+});
+
+testAsync('collectRangeChanges rejects an option-like ref', async () => {
+  const dir = tmpRepo();
+  const result = await gitChanges.collectRangeChanges(dir, '--upload-pack=evil', 'HEAD');
+  assert.strictEqual(result.ok, false);
+});
+
+testAsync('collectCommitChanges returns a structured single-commit diff', async () => {
+  const dir = tmpRepo();
+  const sha = commitFile(dir, 'a.txt', 'a\n', 'add a');
+  const result = await gitChanges.collectCommitChanges(dir, sha);
+  assert.ok(result.ok);
+  if (result.ok) {
+    assert.strictEqual(result.commit.subject, 'add a');
+    assert.strictEqual(result.commit.files.length, 1);
+    assert.strictEqual(result.commit.files[0]!.path, 'a.txt');
+  }
+});
+
+testAsync('collectCommitChanges reports an unknown sha as a 409-shaped error, not a throw', async () => {
+  const dir = tmpRepo();
+  const result = await gitChanges.collectCommitChanges(dir, 'deadbeef');
+  assert.strictEqual(result.ok, false);
+});
+
+testAsync('collectCommitChanges truncates a patch past the configured cap', async () => {
+  const dir = tmpRepo();
+  const sha = commitFile(dir, 'big.txt', `${'x'.repeat(500)}\n`, 'add big file');
+  const result = await gitChanges.collectCommitChanges(dir, sha, 50);
+  assert.ok(result.ok);
+  if (result.ok) {
+    const file = result.commit.files[0]!;
+    assert.ok(file.patch.endsWith('… (patch truncated)'));
+    assert.ok(file.patch.length < 500);
+  }
+});
+
+testAsync('collectRangeCommits returns commits inside the range, newest first', async () => {
+  const dir = tmpRepo();
+  const startRef = headRef(dir);
+  commitFile(dir, 'a.txt', 'a\n', 'add a');
+  const endRef = commitFile(dir, 'b.txt', 'b\n', 'add b');
+  commitFile(dir, 'c.txt', 'c\n', 'add c (after the captured range)');
+
+  const result = await gitChanges.collectRangeCommits(dir, startRef, endRef);
+  assert.ok(result.ok);
+  if (result.ok) assert.deepStrictEqual(result.commits.map((c) => c.subject), ['add b', 'add a']);
+});
+
+testAsync('collectRangeCommits reports empty, not an error, for a job that made no commits', async () => {
+  const dir = tmpRepo();
+  const ref = headRef(dir);
+  const result = await gitChanges.collectRangeCommits(dir, ref, ref);
+  assert.ok(result.ok);
+  if (result.ok) assert.deepStrictEqual(result.commits, []);
+});
+
+// --- git/branch.ts ---
+
+testAsync('createOrSwitchBranch creates and switches to a new branch from an explicit start point', async () => {
+  const dir = tmpRepo();
+  const start = headRef(dir);
+  const result = await gitBranch.createOrSwitchBranch(dir, 'feature/new', start);
+  assert.ok(result.ok);
+  if (result.ok) {
+    assert.strictEqual(result.branch, 'feature/new');
+    assert.strictEqual(result.created, true);
+  }
+  assert.strictEqual(execFileSync('git', ['-C', dir, 'rev-parse', '--abbrev-ref', 'HEAD'], { encoding: 'utf8' }).trim(), 'feature/new');
+});
+
+testAsync('createOrSwitchBranch switches to an already-existing local branch', async () => {
+  const dir = tmpRepo();
+  execFileSync('git', ['-C', dir, 'branch', 'existing']);
+  const result = await gitBranch.createOrSwitchBranch(dir, 'existing');
+  assert.ok(result.ok);
+  if (result.ok) assert.strictEqual(result.created, false);
+});
+
+testAsync('createOrSwitchBranch rejects an invalid branch name', async () => {
+  const dir = tmpRepo();
+  const result = await gitBranch.createOrSwitchBranch(dir, 'not a valid name');
+  assert.strictEqual(result.ok, false);
+});
+
+testAsync('createOrSwitchBranch rejects an unknown start point', async () => {
+  const dir = tmpRepo();
+  const result = await gitBranch.createOrSwitchBranch(dir, 'feature/y', 'does-not-exist');
+  assert.strictEqual(result.ok, false);
+});
+
+testAsync('createOrSwitchBranch reports a dirty-tree checkout conflict rather than throwing', async () => {
+  const dir = tmpRepo();
+  execFileSync('git', ['-C', dir, 'branch', 'other']);
+  execFileSync('git', ['-C', dir, 'checkout', '-q', 'other']);
+  fs.writeFileSync(path.join(dir, 'README.md'), '# other content\n');
+  execFileSync('git', ['-C', dir, 'add', '.']);
+  execFileSync('git', ['-C', dir, 'commit', '-q', '-m', 'change on other']);
+  execFileSync('git', ['-C', dir, 'checkout', '-q', '-']);
+  fs.writeFileSync(path.join(dir, 'README.md'), '# conflicting uncommitted change\n');
+
+  const result = await gitBranch.createOrSwitchBranch(dir, 'other');
+  assert.strictEqual(result.ok, false);
+});
+
+// --- /api/git routes ---
+
+testAsync('GET /api/git returns repo info, status, log, and branches, with baseBranch null by default', async () => {
+  const dir = tmpRepo();
+  const app = createApp(dir);
+  const res = await app.request('/api/git');
+  assert.strictEqual(res.status, 200);
+  const body = (await res.json()) as any;
+  assert.strictEqual(fs.realpathSync(body.info.root), fs.realpathSync(dir));
+  assert.deepStrictEqual(body.status, []);
+  assert.ok(Array.isArray(body.log));
+  assert.ok(Array.isArray(body.branches));
+  assert.strictEqual(body.baseBranch, null);
+});
+
+testAsync('GET /api/git reflects a persisted Configured base branch', async () => {
+  const dir = tmpRepo();
+  fs.writeFileSync(
+    path.join(dir, '.overnight-runner-settings.json'),
+    JSON.stringify({ defaultProvider: 'claude', defaultTimeoutMinutes: 60, defaultIsolation: 'inline', baseBranch: 'main' })
+  );
+  const app = createApp(dir);
+  const res = await app.request('/api/git');
+  const body = (await res.json()) as any;
+  assert.strictEqual(body.baseBranch, 'main');
+});
+
+testAsync('GET /api/git/changes returns structured changes for an untracked file', async () => {
+  const dir = tmpRepo();
+  fs.writeFileSync(path.join(dir, 'new.txt'), 'hi\n');
+  const app = createApp(dir);
+  const res = await app.request('/api/git/changes');
+  assert.strictEqual(res.status, 200);
+  const body = (await res.json()) as any;
+  assert.ok(body.files.some((f: { path: string }) => f.path === 'new.txt'));
+});
+
+testAsync('GET /api/git/commit/:sha returns 409 for an invalid sha', async () => {
+  const dir = tmpRepo();
+  const app = createApp(dir);
+  const res = await app.request('/api/git/commit/not-a-sha');
+  assert.strictEqual(res.status, 409);
+  const body = (await res.json()) as any;
+  assert.strictEqual(typeof body.error, 'string');
+});
+
+testAsync('POST /api/git/branch creates/switches on success and reports 409 for an invalid name', async () => {
+  const dir = tmpRepo();
+  const app = createApp(dir);
+  const ok = await app.request('/api/git/branch', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: 'feature/via-api' }),
+  });
+  assert.strictEqual(ok.status, 200);
+  const okBody = (await ok.json()) as any;
+  assert.strictEqual(okBody.created, true);
+
+  const bad = await app.request('/api/git/branch', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: 'not a valid name' }),
+  });
+  assert.strictEqual(bad.status, 409);
+});
+
+// --- per-job Git routes (/api/runs/:runId/jobs/:identity/*) ---
+
+testAsync('per-job Git routes serve jobStartRef..jobEndRef across worktree, chained, and inline isolation', async () => {
+  const dir = tmpRepo();
+  // The inline job's BLOCKED halts the queue (isolation-mode-mechanics.md), so
+  // it runs LAST here -- worktree and chained must still get to execute (and
+  // capture their own jobStartRef/jobEndRef) beforehand.
+  writeJob(dir, '01-worktree.md', { isolation: 'worktree' });
+  writeJob(dir, '02-chained.md', { isolation: 'chained', chain_from: '01-worktree' });
+  writeJob(dir, '03-inline.md', {});
+
+  // An unknown provider means the isolation setup (and so jobStartRef/jobEndRef
+  // capture) still runs to completion; the provider process just never starts,
+  // which the runner already treats as a normal BLOCKED outcome.
+  const summaryPath = await runner.run(dir, { defaultProvider: 'nonexistent-provider-xyz', timeoutMs: 5000 });
+  const runId = path.basename(summaryPath, '.md');
+  const app = createApp(dir);
+
+  const detail = (await (await app.request(`/api/runs/${runId}`)).json()) as any;
+  const rowFor = (identity: string) => detail.jobs.find((j: any) => j.job === identity);
+
+  for (const identity of ['01-worktree', '02-chained', '03-inline']) {
+    const row = rowFor(identity);
+    assert.ok(row?.jobStartRef, `${identity} should have a captured jobStartRef`);
+    assert.ok(row?.jobEndRef, `${identity} should have a captured jobEndRef`);
+
+    const res = await app.request(`/api/runs/${runId}/jobs/${identity}/changes`);
+    assert.strictEqual(res.status, 200, `${identity} changes route should 200`);
+    const commits = await app.request(`/api/runs/${runId}/jobs/${identity}/commits`);
+    assert.strictEqual(commits.status, 200, `${identity} commits route should 200`);
+  }
+
+  const unknownJob = await app.request(`/api/runs/${runId}/jobs/does-not-exist/changes`);
+  assert.strictEqual(unknownJob.status, 404);
+
+  const unknownRun = await app.request('/api/runs/not-a-real-run/jobs/01-worktree/changes');
+  assert.strictEqual(unknownRun.status, 404);
+});
+
+testAsync('per-job Git routes return an empty successful response when the job has no persisted diff range', async () => {
+  const dir = tmpRepo();
+  // A pre-existing branch collision blocks isolation setup before jobStartRef is ever captured.
+  execFileSync('git', ['-C', dir, 'branch', 'overnight/01-collide']);
+  writeJob(dir, '01-collide.md', { isolation: 'worktree' });
+
+  const summaryPath = await runner.run(dir, { defaultProvider: 'nonexistent-provider-xyz', timeoutMs: 5000 });
+  const runId = path.basename(summaryPath, '.md');
+  const app = createApp(dir);
+
+  const changes = await app.request(`/api/runs/${runId}/jobs/01-collide/changes`);
+  assert.strictEqual(changes.status, 200);
+  assert.deepStrictEqual(await changes.json(), { files: [], stat: { adds: 0, dels: 0, files: 0 } });
+
+  const commits = await app.request(`/api/runs/${runId}/jobs/01-collide/commits`);
+  assert.strictEqual(commits.status, 200);
+  assert.deepStrictEqual(await commits.json(), { commits: [] });
+});
+
+await runAsyncTests();
 
 if (failures > 0) {
   console.error(`\n${failures} smoke test(s) failed.`);

@@ -1,4 +1,4 @@
-import { History, ListChecks, Settings as SettingsIcon } from 'lucide-react';
+import { GitBranch, History, ListChecks, Settings as SettingsIcon } from 'lucide-react';
 import { NavLink, Outlet, useLocation } from 'react-router';
 import type { JobDisplayStatus } from 'contract';
 import { useServeState } from '@/api/events';
@@ -10,6 +10,7 @@ import { client } from '@/api/client';
 const NAV = [
   { to: '/', label: 'Queue', icon: ListChecks },
   { to: '/history', label: 'History', icon: History },
+  { to: '/git', label: 'Git', icon: GitBranch },
   { to: '/settings', label: 'Settings', icon: SettingsIcon },
 ];
 
@@ -32,7 +33,10 @@ function AppShell() {
   const location = useLocation();
 
   const isRunning = run?.status === 'in-progress';
-  const title = NAV.find((item) => item.to === location.pathname)?.label ?? 'Queue';
+  // The Git tab owns three sub-routes (/git, /git/commits[/:sha], /git/branches)
+  // that all share one nav item -- prefix match, not the exact-pathname match
+  // History/Settings/Queue get away with today.
+  const title = NAV.find((item) => (item.to === '/' ? location.pathname === '/' : location.pathname.startsWith(item.to)))?.label ?? 'Queue';
 
   async function handleStart() {
     await client.api.run.start.$post();

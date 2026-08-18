@@ -146,7 +146,7 @@ function QueueView() {
 
       <div className="flex-1 overflow-auto border-l border-border p-4">
         {selectedJob ? (
-          <JobDetail job={selectedJob} run={run} runningJob={runningJob} />
+          <JobDetail job={selectedJob} run={run} runningJob={runningJob} runId={run?.runId ?? null} />
         ) : (
           <p className="text-sm text-soft-foreground">Select a job to see its detail.</p>
         )}

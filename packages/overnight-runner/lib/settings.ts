@@ -8,6 +8,7 @@ const DEFAULT_SETTINGS: Settings = {
   defaultProvider: 'claude',
   defaultTimeoutMinutes: 60,
   defaultIsolation: 'inline',
+  baseBranch: null,
 };
 
 function settingsPath(repoPath: string): string {

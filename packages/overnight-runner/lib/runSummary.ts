@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { Job } from './queue.ts';
 
-export type RunSummaryJob = Pick<Job, 'identity' | 'isolation' | 'initialStatus' | 'duration' | 'providerUsed' | 'branchProduced' | 'commitRef'> &
+export type RunSummaryJob = Pick<Job, 'identity' | 'isolation' | 'initialStatus' | 'duration' | 'providerUsed' | 'branchProduced' | 'commitRef' | 'jobStartRef' | 'jobEndRef'> &
   Partial<Pick<Job, 'outcome' | 'provider' | 'notes'>>;
 
 export interface Run {
@@ -53,6 +53,8 @@ function renderRow(job: RunSummaryJob): string {
     job.branchProduced || '',
     job.providerUsed || job.provider || '',
     job.commitRef || '',
+    job.jobStartRef || '',
+    job.jobEndRef || '',
     job.notes || '',
   ].map(escapeCell);
   return `| ${cells.join(' | ')} |`;
@@ -62,8 +64,8 @@ function write(summaryPath: string, run: Run): void {
   const { runStatus, started, baseBranch, provider, jobs } = run;
   const header = ['---', `run_status: ${runStatus}`, `started: ${started}`, `base_branch: ${baseBranch}`, `provider: ${provider}`, '---'].join('\n');
   const totals = renderTotals(jobs);
-  const tableHeader = '| Job | Status | Duration | Isolation mode | Branch produced | Provider | Commit ref | Notes |';
-  const tableDivider = '|---|---|---|---|---|---|---|---|';
+  const tableHeader = '| Job | Status | Duration | Isolation mode | Branch produced | Provider | Commit ref | Job start ref | Job end ref | Notes |';
+  const tableDivider = '|---|---|---|---|---|---|---|---|---|---|';
   const rows = jobs.map(renderRow);
 
   const content = [header, '', totals, '', tableHeader, tableDivider, ...rows, ''].join('\n');

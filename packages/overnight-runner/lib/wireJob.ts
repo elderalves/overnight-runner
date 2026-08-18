@@ -32,6 +32,8 @@ function toWireJob(job: Job, inRunContext: boolean): WireJob {
     duration: job.duration,
     branchProduced: job.branchProduced,
     commitRef: job.commitRef,
+    jobStartRef: job.jobStartRef,
+    jobEndRef: job.jobEndRef,
   };
 }
 

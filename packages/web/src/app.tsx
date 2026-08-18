@@ -7,6 +7,7 @@ import { AppShell } from '@/components/AppShell';
 import { QueueView } from '@/routes/QueueView';
 import { HistoryView } from '@/routes/HistoryView';
 import { SettingsView } from '@/routes/SettingsView';
+import { GitView } from '@/routes/git/GitView';
 
 function createQueryClient(): QueryClient {
   return new QueryClient({
@@ -33,6 +34,10 @@ function App() {
               <Route element={<AppShell />}>
                 <Route index element={<QueueView />} />
                 <Route path="history" element={<HistoryView />} />
+                <Route path="git" element={<GitView tab="changes" />} />
+                <Route path="git/commits" element={<GitView tab="commits" />} />
+                <Route path="git/commits/:sha" element={<GitView tab="commits" />} />
+                <Route path="git/branches" element={<GitView tab="branches" />} />
                 <Route path="settings" element={<SettingsView />} />
               </Route>
             </Routes>

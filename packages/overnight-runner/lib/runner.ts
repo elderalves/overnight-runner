@@ -9,6 +9,7 @@ import type { IsolationResult } from './isolation.ts';
 import * as runSummary from './runSummary.ts';
 import type { Run } from './runSummary.ts';
 import * as progress from './progress.ts';
+import { readSettings } from './settings.ts';
 
 function runId(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');
@@ -20,6 +21,17 @@ function safeShortRef(repoPath: string, ref: string): string {
     return git.shortRef(repoPath, ref);
   } catch {
     return '';
+  }
+}
+
+// Undefined (not '') on failure -- '' would persist as a real, empty ref
+// string rather than "not captured," which is what an absent jobStartRef/
+// jobEndRef must mean to the per-job Git routes. See per-job-diff-semantics.md.
+function safeFullRef(cwd: string, ref: string): string | undefined {
+  try {
+    return git.fullRef(cwd, ref);
+  } catch {
+    return undefined;
   }
 }
 
@@ -57,6 +69,10 @@ async function run(
   }: { defaultProvider?: string; timeoutMs?: number; onUpdate?: (event: RunUpdateEvent) => void; control?: RunControl } = {}
 ): Promise<string> {
   const baseBranch = git.currentBranch(repoPath);
+  // The persisted Configured base branch (Git tab) -- read once per run, only
+  // ever consulted for a worktree job's fork point. See
+  // base-branch-configurability.md.
+  const configuredBaseBranch = readSettings(repoPath).baseBranch;
   const started = new Date();
   const id = runId(started);
   const summaryPath = path.join(repoPath, 'runs', `${id}.md`);
@@ -108,7 +124,7 @@ async function run(
     runSummary.write(summaryPath, state);
     onUpdate?.({ type: 'job-started', job, queuePosition, timeoutMs: effectiveTimeoutMs, startedAt, line: startedLine });
 
-    const stop = await executeJob(repoPath, baseBranch, job, defaultProvider, timeoutMs, logsDir, queuePosition, control?.signal);
+    const stop = await executeJob(repoPath, baseBranch, configuredBaseBranch, job, defaultProvider, timeoutMs, logsDir, queuePosition, control?.signal);
     runSummary.write(summaryPath, state);
     const finishedLine = progress.formatFinished(job, queuePosition, stop);
     console.log(finishedLine);
@@ -135,6 +151,7 @@ async function run(
 async function executeJob(
   repoPath: string,
   baseBranch: string,
+  configuredBaseBranch: string | null,
   job: Job,
   defaultProvider: string | undefined,
   timeoutMs: number | undefined,
@@ -148,7 +165,7 @@ async function executeJob(
 
   let setupResult: IsolationResult;
   try {
-    setupResult = isolation.setup(repoPath, job, baseBranch);
+    setupResult = isolation.setup(repoPath, job, baseBranch, configuredBaseBranch);
   } catch (err) {
     setupResult = { blocked: `unexpected error during isolation setup: ${(err as Error).message}` };
   }
@@ -161,6 +178,10 @@ async function executeJob(
     writeStatus(job.filePath, 'blocked');
     return job.isolation === 'inline';
   }
+
+  // Captured right after isolation setup, before the provider starts -- the
+  // per-job Git view's exact diff-range start. See per-job-diff-semantics.md.
+  job.jobStartRef = safeFullRef(setupResult.cwd, 'HEAD');
 
   try {
     const prompt = providers.buildPrompt(effectiveProvider, job.filePath);
@@ -176,6 +197,8 @@ async function executeJob(
     });
     job.duration = Date.now() - startTime;
 
+    // Captured before teardown, against the same cwd as jobStartRef.
+    job.jobEndRef = safeFullRef(setupResult.cwd, 'HEAD');
     isolation.teardown(repoPath, setupResult);
 
     job.outcome = result.result;
@@ -197,6 +220,7 @@ async function executeJob(
     // Only reachable when the provider process itself never started (e.g. an
     // unknown provider name) -- the skill never ran, so nothing else will ever
     // write this job's status; the runner must, same as the isolation-blocked case.
+    job.jobEndRef = safeFullRef(setupResult.cwd, 'HEAD');
     isolation.teardown(repoPath, setupResult);
     job.outcome = 'BLOCKED';
     job.notes = `unexpected runner error: ${(err as Error).message}`;

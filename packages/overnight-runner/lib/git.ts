@@ -21,6 +21,12 @@ function shortRef(repoPath: string, ref: string): string {
   return git(repoPath, ['rev-parse', '--short', ref]);
 }
 
+// Full-length SHA -- the exact `jobStartRef`/`jobEndRef` persisted for the
+// per-job Git view's diff range. See per-job-diff-semantics.md.
+function fullRef(repoPath: string, ref: string): string {
+  return git(repoPath, ['rev-parse', ref]);
+}
+
 // Creates a new branch off `base`'s live tip and checks it out into a fresh worktree.
 function worktreeAddNew(repoPath: string, worktreeDir: string, branch: string, base: string): void {
   git(repoPath, ['worktree', 'add', '-b', branch, worktreeDir, base]);
@@ -39,4 +45,4 @@ function worktreeRemove(repoPath: string, worktreeDir: string): void {
   }
 }
 
-export { currentBranch, branchExists, shortRef, worktreeAddNew, worktreeAddExisting, worktreeRemove };
+export { currentBranch, branchExists, shortRef, fullRef, worktreeAddNew, worktreeAddExisting, worktreeRemove };
