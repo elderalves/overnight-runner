@@ -32,6 +32,10 @@ _Avoid_: main branch, target branch
 An optional saved preference for which branch future worktree jobs fork from and Git views compare against. When unset, the runner follows the checked-out branch. It does not make inline jobs switch branches before they run.
 _Avoid_: base branch (that is the per-run fact), target branch, main branch
 
+**Job diff range**:
+The pair of refs that bounds the git changes attributed to one executed job: the target repo checkout before that job's provider session starts and the same checkout after it finishes. This range is per-job even when jobs share a branch through inline execution or a chained lineage.
+_Avoid_: branch diff (ambiguous with a whole branch or lineage), commit ref (that is a display ref, not the full range)
+
 **Provider**:
 A supported coding-agent CLI: Claude Code, Codex, or Copilot CLI.
 _Avoid_: agent, model, tool

@@ -1,12 +1,3 @@
-/**
- * Pure parsing + row building for the <Diff> facade, ported verbatim from
- * cezar's components/diff/parse-patch.ts (frontend-git-component-port.md):
- * one file's unified-diff section (the server's ChangedFile.patch) -> hunks
- * with per-side line numbers -> renderable rows for the unified and split
- * layouts, with word-level spans attached to paired del/add lines. No DOM,
- * no git library.
- */
-
 import { diffWords, type WordSpan } from './word-diff';
 
 export interface HunkLine {

@@ -1,14 +1,6 @@
 import { execFile } from 'node:child_process';
 import { isSafeGitRef } from './refs.ts';
 
-// Repo-view branch action (POST /api/git/branch), ported from cezar's
-// server/git-changes.ts createOrSwitchBranch: switch to `name` when it
-// already exists locally, otherwise create it from `from` (or HEAD) and
-// switch. Name validation is delegated to `git check-ref-format --branch` --
-// git's own rules -- behind an explicit dash-guard. Predictable failures
-// (invalid name, unknown `from`, dirty-tree checkout conflict) come back as
-// { ok:false, error }.
-
 interface GitResult {
   ok: boolean;
   stdout: string;

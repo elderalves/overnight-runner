@@ -1,8 +1,7 @@
 import type * as React from 'react';
 import { cn } from '@/lib/utils';
 
-// A muted, monospace badge for branch/ref-shaped values in table cells --
-// cezar's BranchChip treatment (design-tokens-component-mapping.md).
+// A muted, monospace badge for branch/ref-shaped values in table cells
 interface CodeBadgeProps {
   children: React.ReactNode;
   className?: string;

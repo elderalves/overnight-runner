@@ -11,10 +11,6 @@ import { DiffViewToggles } from '@/components/git/diff-controls';
 import { buildFileTree } from '@/components/git/file-tree';
 import { useIsDesktop } from '@/lib/use-desktop';
 
-// The Git tab's Changes section: the target repo's uncommitted diff over
-// GET /api/git/changes, ported from cezar's repo-git/repo-changes.tsx
-// (frontend-git-component-port.md). Read-only -- no commit/push controls
-// here (frontend-git-component-port.md's scope decision).
 export function RepoChangesSection() {
   const changes = useGitChanges();
   const desktop = useIsDesktop();

@@ -1,13 +1,5 @@
 import type { ChangedFile } from 'contract';
 
-/**
- * The Changes view's file tree, as pure data. Ported from cezar's task-git/
- * file-tree.ts (frontend-git-component-port.md): changed paths -> nested
- * folders with per-folder +/- aggregates, dirs first, single-child folder
- * chains compacted the way forges render them (packages/web/src -> one row)
- * so a deep monorepo path doesn't cost six indent levels.
- */
-
 export interface TreeFile {
   kind: 'file';
   /** Display name (the path's last segment). */

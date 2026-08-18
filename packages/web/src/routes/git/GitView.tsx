@@ -10,14 +10,6 @@ import { RepoChangesSection } from './RepoChangesSection';
 import { RepoCommitsSection } from './RepoCommitsSection';
 import { RepoBranchesSection } from './RepoBranchesSection';
 
-/**
- * The repo-level Git tab, ported from cezar's repo-git/repo-git.tsx
- * (frontend-git-component-port.md): the target repo's structured diff, the
- * recent-commit log with per-commit diffs, and the branch list with switch/
- * create + the Configured base branch picker. URL-backed sections (`/git`,
- * `/git/commits[/:sha]`, `/git/branches`), so every surface deep-links and
- * survives a refresh -- see git-feature-ia-placement.md.
- */
 export type RepoTab = 'changes' | 'commits' | 'branches';
 
 export function GitView({ tab }: { tab: RepoTab }) {

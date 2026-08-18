@@ -7,19 +7,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 
-/**
- * The Git tab's Branches section, ported from cezar's repo-git/repo-
- * branches.tsx (frontend-git-component-port.md): the branch list GET
- * /api/git already carries, with switch/create wired to
- * POST /api/git/branch, and the Configured base branch picker wired to
- * PUT /api/settings (base-branch-configurability.md) rather than cezar's own
- * dedicated /api/config route.
- *
- * The forge-only block cezar renders here (open pull requests, gated on
- * /api/health) is dropped outright, per the research inventory and this
- * map's out-of-scope GitHub issues/PRs decision -- there is no equivalent
- * surface, not a trimmed one.
- */
 export function RepoBranchesSection({ git }: { git: GitResponse }) {
   const info = git.info!;
   const branchAction = useCreateOrSwitchBranch();

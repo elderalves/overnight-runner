@@ -5,12 +5,6 @@ import { cn } from '@/lib/utils';
 
 import type { TreeDir, TreeFile } from './file-tree';
 
-/**
- * The Changes view's file tree, ported from cezar's task-git/changes-
- * tree.tsx (frontend-git-component-port.md). Pure presentation over
- * buildFileTree's data -- clicking a file tells the parent, which scrolls
- * the diff; the tree itself owns nothing but its collapse state.
- */
 export function ChangesTree({ root, selected, onSelect }: { root: TreeDir; selected: string | null; onSelect: (path: string) => void }) {
   return (
     <nav data-slot="changes-tree" aria-label="Changed files" className="min-w-0 text-[13px]">

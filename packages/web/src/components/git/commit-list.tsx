@@ -4,19 +4,6 @@ import { Virtualizer } from 'virtua';
 
 import { cn } from '@/lib/utils';
 
-/**
- * The commit log list, shared by the repo Git tab's Commits section and the
- * per-job Commits tab -- one `sha · subject · author · when` row per commit,
- * deep-linking to that commit's structured diff. Ported from cezar's task-
- * git/commit-list.tsx (frontend-git-component-port.md), with `Link` from
- * plain react-router (no multi-project scoping needed here).
- *
- * Flat with content-visibility: auto up to {@link COMMIT_VIRTUALIZE_THRESHOLD}
- * rows, virtua past it -- realistically rare in this map (the repo log caps
- * at 20, the per-job commit list defaults to 50), but kept for parity with
- * a diff/commit list that could grow.
- */
-
 export const COMMIT_VIRTUALIZE_THRESHOLD = 150;
 
 /** One row: py-2.5 (20px) + a text-[13px]/leading-normal line ~= 40px, plus the divider. */

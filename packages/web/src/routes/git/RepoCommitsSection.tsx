@@ -13,10 +13,6 @@ import { DiffViewToggles } from '@/components/git/diff-controls';
 import { Button } from '@/components/ui/button';
 import { useIsDesktop } from '@/lib/use-desktop';
 
-// The Git tab's Commits section, ported from cezar's repo-git/repo-
-// commits.tsx (frontend-git-component-port.md): the recent-commit log GET
-// /api/git already carries, each row deep-linking to /git/commits/:sha where
-// the structured commit diff renders through the same <Diff> facade.
 export function RepoCommitsSection({ log }: { log: LogEntry[] }) {
   const { sha } = useParams<{ sha: string }>();
   if (sha) return <CommitDiffView sha={sha} />;

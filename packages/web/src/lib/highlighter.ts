@@ -1,27 +1,5 @@
 import type { HighlighterCore } from 'shiki/core';
 
-/**
- * The ONE Shiki highlighter for the diff viewer, ported from cezar's
- * lib/highlighter.ts (frontend-git-component-port.md). A second
- * `createHighlighterCore` call anywhere is a bug -- it would instantiate the
- * engine and re-fetch grammars twice.
- *
- * Bundle rules this module exists to enforce:
- *  - fine-grained core only (`shiki/core`), never the full `shiki` bundle --
- *    the full bundle lands every grammar in dist/;
- *  - the JavaScript regex engine, never the Oniguruma WASM blob;
- *  - core, engine and every grammar load through dynamic import(), so all of
- *    Shiki lives in lazy chunks off the main bundle -- a page with no diff
- *    downloads none of it;
- *  - grammars load on demand per file extension, from the explicit allowlist
- *    below (a fully dynamic import(`@shikijs/langs/${lang}`) would
- *    chunk-split all ~200 grammars);
- *  - every unknown language falls back to plaintext.
- *
- * Theming: ONE theme whose token colors are the --syn-* CSS variables from
- * styles/index.css.
- */
-
 /** A highlighted line: what the diff viewer renders. */
 export interface SynToken {
   content: string;

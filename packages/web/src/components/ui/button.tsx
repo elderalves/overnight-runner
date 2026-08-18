@@ -4,9 +4,6 @@ import { Slot } from 'radix-ui';
 
 import { cn } from '@/lib/utils';
 
-// Ported from cezar's ui/button.tsx (design-tokens-component-mapping.md's
-// verbatim-copy precedent), trimmed to the variants this map's Git surfaces
-// actually use -- no `contrast` variant (no CTA here needs it).
 const buttonVariants = cva(
   "inline-flex shrink-0 items-center justify-center gap-[7px] rounded-md font-semibold whitespace-nowrap transition-[background-color,border-color,opacity,filter] outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {

@@ -1,16 +1,3 @@
-/**
- * Word-level intra-line diff for paired del/add lines, ported verbatim from
- * cezar's components/diff/word-diff.ts (frontend-git-component-port.md): a
- * small LCS over word/space/punctuation tokens, no library. Deliberately
- * conservative: dissimilar lines (a full rewrite) get NO word marks, because
- * marking 95% of a line tells the reader nothing.
- *
- * Also home to `overlaySegments`, the pure merge of syntax tokens (the Shiki
- * singleton's per-line output) with word spans -- one line of rendered diff
- * is tokens x marks, split at every boundary of either, so highlighting and
- * word emphasis compose instead of competing.
- */
-
 import type { SynToken } from '@/lib/highlighter';
 
 export interface WordSpan {

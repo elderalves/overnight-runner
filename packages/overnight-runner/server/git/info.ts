@@ -2,10 +2,6 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import type { RepoInfo, StatusEntry, LogEntry } from 'contract';
 
-// Repo-level read helpers for the Git tab, ported from cezar's server/git.ts
-// (backend-git-module-contract.md): every function takes a plain directory
-// path and shells out via execFile, with zero app-state coupling.
-
 const exec = promisify(execFile);
 
 async function git(root: string, args: string[]): Promise<string> {
@@ -48,7 +44,7 @@ async function getStatus(root: string): Promise<StatusEntry[]> {
 // Local + origin branch names, deduped (origin/x counts as x), sorted.
 // Feeds the Git tab's branch list and base-branch picker. Branches under
 // `overnight/` are the runner's own per-worktree-job bookkeeping (isolation.ts)
-// and are filtered out, mirroring cezar's own `cez/` filter.
+// and are filtered out
 async function getBranches(root: string): Promise<string[]> {
   const names = new Set<string>();
   try {

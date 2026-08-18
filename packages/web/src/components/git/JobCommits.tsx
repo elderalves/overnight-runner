@@ -11,14 +11,6 @@ import { useIsDesktop } from '@/lib/use-desktop';
 import { CommitList } from './commit-list';
 import { DiffViewToggles } from './diff-controls';
 
-/**
- * Job Detail's Commits tab, ported from cezar's task-git/task-commits.tsx
- * (frontend-git-component-port.md): this job's own commits
- * (jobStartRef..jobEndRef), each opening its structured diff through the
- * same <Diff> facade. Not its own route (Job Detail is embedded in Queue's
- * pinned pane and History's nested disclosure, not a page) -- drills into a
- * commit via local state instead of a URL.
- */
 export function JobCommits({ runId, identity, live }: { runId: string | null; identity: string; live: boolean }) {
   const commits = useJobCommits(runId, identity, live);
   const [sha, setSha] = useState<string | null>(null);

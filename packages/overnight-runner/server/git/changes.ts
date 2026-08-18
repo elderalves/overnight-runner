@@ -5,14 +5,6 @@ import { join } from 'node:path';
 import type { ChangedFile, ChangesPayload, CommitPayload, RunCommit } from 'contract';
 import { isSafeGitRef } from './refs.ts';
 
-// Structured diff parser + collector for the Git tab and per-job Git view,
-// ported from cezar's server/git-changes.ts (backend-git-module-contract.md),
-// trimmed to what this map needs: no forge, no worktree lifecycle, no
-// resolveTaskDiffBase merge-base/reflog anchoring -- per-job diffs use the
-// exact persisted jobStartRef..jobEndRef range instead (see
-// per-job-diff-semantics.md), and the repo-level Changes view diffs the
-// working tree against plain HEAD.
-
 interface GitResult {
   ok: boolean;
   stdout: string;

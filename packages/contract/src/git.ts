@@ -1,8 +1,3 @@
-// Wire shapes for the Git tab (repo-level) and per-job Git view, ported from
-// cezar's server/git.ts + server/git-changes.ts contract shapes as plain
-// exported interfaces rather than cezar's zod schemas -- see
-// .alves/issues/overnight-runner-git-feature/backend-git-module-contract.md.
-
 export interface RepoInfo {
   root: string;
   branch: string;

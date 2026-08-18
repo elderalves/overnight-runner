@@ -1,10 +1,6 @@
 import type { DiffFileChange } from './types';
 
 /**
- * The diff's rendering-cost rules, ported verbatim from cezar's
- * components/diff/diff-scroll.ts (frontend-git-component-port.md) -- pure
- * data, no DOM.
- *
  * THE PERFORMANCE RULE: up to {@link DIFF_VIRTUALIZE_THRESHOLD} rendered rows
  * the diff renders every file card flat, each carrying
  * `content-visibility: auto` -- the browser skips style/layout/paint for

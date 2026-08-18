@@ -1,18 +1,5 @@
 import type { ChangedFile } from 'contract';
 
-/**
- * The <Diff> facade contract, ported from cezar's components/diff/types.ts
- * (frontend-git-component-port.md). Consumers (the Git tab's Changes/Commits
- * sections, per-job Changes/Commits) import from @/components/diff and never
- * from a diff-rendering library directly.
- *
- * Trimmed from cezar's version: no `loadFileText` (expandable context) and no
- * `imageSrc`/`onOpenInApp` (image preview, "open in app") props -- both need
- * a raw-bytes route into the worktree, and this map's Files tab / per-job
- * commit-push actions are explicitly out of scope (frontend-git-component-
- * port.md). Context gaps render as static "N unchanged lines" separators
- * instead of expanding, and image files always show the honest binary note.
- */
 export type DiffFileChange = ChangedFile;
 
 export type DiffMode = 'unified' | 'split';

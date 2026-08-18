@@ -11,19 +11,6 @@ import { ChangesTree } from './changes-tree';
 import { DiffViewToggles } from './diff-controls';
 import { buildFileTree } from './file-tree';
 
-/**
- * Job Detail's Changes tab, ported from cezar's task-git/task-changes.tsx
- * (frontend-git-component-port.md) and trimmed to a read-only historical
- * surface: no toolbar, no commit/push/PR actions, no Files tab -- a job's
- * worktree may already be torn down by the time this renders.
- *
- * `runId === null` means this job hasn't been touched by any run this server
- * session has seen (idle queue listing) -- the empty state renders without
- * ever fetching. Once a run id is known, a missing jobStartRef..jobEndRef
- * range still renders the same empty state (the route's own successful-empty
- * response), so the tab layout never changes shape across a job's lifecycle
- * -- see git-feature-ia-placement.md.
- */
 export function JobChanges({ runId, identity, live }: { runId: string | null; identity: string; live: boolean }) {
   const changes = useJobChanges(runId, identity, live);
   const desktop = useIsDesktop();

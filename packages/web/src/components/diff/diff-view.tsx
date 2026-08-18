@@ -24,18 +24,6 @@ import {
 import type { DiffFileChange, DiffProps } from './types';
 import { overlaySegments } from './word-diff';
 
-/**
- * The default <Diff> renderer, ported from cezar's components/diff/diff-
- * view.tsx (frontend-git-component-port.md) -- our own implementation of the
- * facade contract, loaded lazily by diff.tsx. Unified and split layouts over
- * the pure row builders in parse-patch.ts, word-level marks from word-
- * diff.ts, syntax highlighting through the ONE Shiki singleton.
- *
- * Trimmed from cezar's version: no expandable context gaps and no image
- * preview wiring -- both need a raw-bytes route into the worktree that this
- * map's read-only, Files-less scope doesn't have (see types.ts).
- */
-
 /** Past this many patch lines a file skips syntax highlighting -- plaintext beats jank. */
 const HIGHLIGHT_MAX_LINES = 1500;
 

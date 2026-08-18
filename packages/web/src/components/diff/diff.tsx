@@ -7,16 +7,6 @@ import { cn } from '@/lib/utils';
 import { ImagePreview, shouldPreviewImage } from './image-preview';
 import type { DiffFileChange, DiffProps } from './types';
 
-/**
- * <Diff> -- the ONE diff surface of the Git tab and per-job Git view, ported
- * from cezar's components/diff/diff.tsx (frontend-git-component-port.md).
- * Props are ours (./types.ts); consumers never import a diff library.
- *
- * The renderer loads as a lazy chunk (parser + word-diff + Shiki wiring stay
- * off the main bundle). If that chunk fails to load, the inline
- * `DiffFallback` below renders the same props as plain marked-up patch text:
- * degraded, never blank.
- */
 export function Diff(props: DiffProps) {
   const [engine, setEngine] = useState<{ View: ComponentType<DiffProps> } | 'failed' | null>(null);
   useEffect(() => {

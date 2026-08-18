@@ -2,17 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import type { DiffStat } from 'contract';
 import { cn } from '@/lib/utils';
 
-// `+128 −14` -- a diff's aggregate numbers, ported from cezar's
-// components/diff-stat.tsx (frontend-git-component-port.md): mono, tabular,
-// adds in the success token, deletions in the danger token. One component so
-// the Git tab, per-job Git view, and file tree can never disagree about what
-// a diff stat looks like. The `−` is U+2212 (minus sign), not a hyphen.
-//
-// Cezar's DiffStatLabel also carried a `repointed` caveat for diffs measured
-// against a branch an agent's worktree was repointed onto -- overnight-runner
-// doesn't adopt that reflog-based anchoring (per-job-diff-semantics.md uses
-// the exact persisted jobStartRef..jobEndRef range instead), so there is no
-// equivalent ambiguity to caveat here.
 export function DiffStatLabel({ stat, className }: { stat: DiffStat; className?: string }) {
   const counts = `+${stat.adds} −${stat.dels} across ${stat.files} ${stat.files === 1 ? 'file' : 'files'}`;
   return (
@@ -22,12 +11,6 @@ export function DiffStatLabel({ stat, className }: { stat: DiffStat; className?:
   );
 }
 
-/**
- * The "animated aggregate ± stat" (ported from cezar's task-git/git-
- * toolbar.tsx, which this map does not copy as an interactive toolbar): the
- * totals count toward new values when a live diff changes, reading as
- * movement rather than a flicker. Respects prefers-reduced-motion.
- */
 export function AnimatedDiffStat({ stat }: { stat: DiffStat }) {
   const adds = useAnimatedNumber(stat.adds);
   const dels = useAnimatedNumber(stat.dels);

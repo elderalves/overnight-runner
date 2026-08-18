@@ -2,10 +2,6 @@ import type { ReactNode } from 'react';
 
 import { cn } from '@/lib/utils';
 
-// Ported from cezar's components/centered-state.tsx (frontend-git-component-
-// port.md) -- the one template for every loading/empty/error state the Git
-// tab and per-job Git view need: a tinted icon tile, a title, a muted
-// subtitle, an actions row.
 export type CenteredStateTone = 'neutral' | 'primary' | 'danger';
 
 const tileTone: Record<CenteredStateTone, string> = {

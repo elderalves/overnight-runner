@@ -4,13 +4,6 @@ import type { DiffMode } from '@/components/diff';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
-/**
- * The diff view's local controls, ported from cezar's task-git/diff-
- * controls.tsx (frontend-git-component-port.md): the unified/split + wrap
- * toggles shared by the repo Git tab and the per-job Changes/Commits views.
- * Layout preferences, not git actions. Callers own the "hidden below md"
- * wrapper -- phones force unified+wrap and hide these entirely.
- */
 export function DiffViewToggles({
   mode,
   wrap,
