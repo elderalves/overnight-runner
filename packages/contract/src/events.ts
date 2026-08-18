@@ -55,6 +55,8 @@ export interface JobFinishedEvent {
   notes: string;
   branchProduced?: string;
   commitRef?: string;
+  jobStartRef?: string;
+  jobEndRef?: string;
   providerUsed?: string;
   stopping: boolean;
   line: string;

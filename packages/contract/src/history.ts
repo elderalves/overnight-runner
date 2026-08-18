@@ -10,6 +10,11 @@ export interface RunHistoryRow {
   branchProduced: string;
   provider: string;
   commitRef: string;
+  // Full-length start/end refs this job executed between, empty when this run
+  // never executed the job -- the per-job Git routes' `jobStartRef..jobEndRef`
+  // source. See per-job-diff-semantics.md.
+  jobStartRef: string;
+  jobEndRef: string;
   notes: string;
 }
 

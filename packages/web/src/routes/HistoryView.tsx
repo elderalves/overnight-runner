@@ -1,8 +1,10 @@
 import { useState } from 'react';
-import type { JobDisplayStatus } from 'contract';
+import type { JobDisplayStatus, RunHistoryRow } from 'contract';
 import { useRun, useRuns } from '@/api/queries';
 import { StatusPill } from '@/components/StatusPill';
 import { CodeBadge } from '@/components/CodeBadge';
+import { JobDetail } from '@/components/JobDetail';
+import type { JobDetailJob } from '@/components/JobDetail';
 import { cn } from '@/lib/utils';
 import { TD_BASE, TH_BASE } from '@/lib/table';
 import { formatDuration } from '@/lib/duration';
@@ -50,6 +52,11 @@ interface HistoryRowProps {
 function HistoryRow({ id, status, totals, started, ended, open, onToggle }: HistoryRowProps) {
   const { data: detail } = useRun(open ? id : null);
   const totalDuration = started && ended ? formatDuration(new Date(ended).getTime() - new Date(started).getTime()) : null;
+  // One level deeper than the run row's own click-to-expand: a job row inside
+  // an open run can itself disclose its Job Detail tabs (Log/Changes/
+  // Commits), the same shared component Queue's live pinned pane uses --
+  // see git-feature-ia-placement.md.
+  const [openJob, setOpenJob] = useState<string | null>(null);
 
   return (
     <div className="mb-2 overflow-hidden rounded-md border border-border">
@@ -76,18 +83,7 @@ function HistoryRow({ id, status, totals, started, ended, open, onToggle }: Hist
               </thead>
               <tbody className="[&>tr:last-child>td]:border-b-0">
                 {detail.jobs.map((row) => (
-                  <tr key={row.job} className="hover:bg-muted">
-                    <td className={cn(TD_BASE, 'font-mono')}>{row.job}</td>
-                    <td className={TD_BASE}>
-                      <StatusPill status={row.status as JobDisplayStatus} />
-                    </td>
-                    <td className={cn(TD_BASE, 'font-mono text-muted-foreground')}>{row.duration || '—'}</td>
-                    <td className={TD_BASE}>{row.isolation}</td>
-                    <td className={TD_BASE}>{row.branchProduced ? <CodeBadge>{row.branchProduced}</CodeBadge> : '—'}</td>
-                    <td className={TD_BASE}>{row.provider}</td>
-                    <td className={cn(TD_BASE, 'font-mono text-muted-foreground')}>{row.commitRef || '—'}</td>
-                    <td className={cn(TD_BASE, 'h-auto min-h-11 whitespace-normal py-2')}>{row.notes}</td>
-                  </tr>
+                  <JobRow key={row.job} row={row} runId={id} open={openJob === row.job} onToggle={() => setOpenJob((j) => (j === row.job ? null : row.job))} />
                 ))}
               </tbody>
             </table>
@@ -95,6 +91,47 @@ function HistoryRow({ id, status, totals, started, ended, open, onToggle }: Hist
         </div>
       )}
     </div>
+  );
+}
+
+function toJobDetailJob(row: RunHistoryRow): JobDetailJob {
+  return {
+    identity: row.job,
+    isolation: row.isolation,
+    provider: row.provider || null,
+    displayStatus: row.status as JobDisplayStatus,
+    notes: row.notes,
+  };
+}
+
+function JobRow({ row, runId, open, onToggle }: { row: RunHistoryRow; runId: string; open: boolean; onToggle: () => void }) {
+  return (
+    <>
+      <tr className="cursor-pointer hover:bg-muted" onClick={onToggle}>
+        <td className={cn(TD_BASE, 'font-mono')}>
+          <span className={cn('mr-1.5 inline-block text-soft-foreground transition-transform', open && 'rotate-90')}>›</span>
+          {row.job}
+        </td>
+        <td className={TD_BASE}>
+          <StatusPill status={row.status as JobDisplayStatus} />
+        </td>
+        <td className={cn(TD_BASE, 'font-mono text-muted-foreground')}>{row.duration || '—'}</td>
+        <td className={TD_BASE}>{row.isolation}</td>
+        <td className={TD_BASE}>{row.branchProduced ? <CodeBadge>{row.branchProduced}</CodeBadge> : '—'}</td>
+        <td className={TD_BASE}>{row.provider}</td>
+        <td className={cn(TD_BASE, 'font-mono text-muted-foreground')}>{row.commitRef || '—'}</td>
+        <td className={cn(TD_BASE, 'h-auto min-h-11 whitespace-normal py-2')}>{row.notes}</td>
+      </tr>
+      {open && (
+        <tr>
+          <td colSpan={COLUMNS.length} className="border-b border-border bg-background/40 p-3">
+            <div className="h-80">
+              <JobDetail job={toJobDetailJob(row)} run={null} runningJob={null} runId={runId} />
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
   );
 }
 

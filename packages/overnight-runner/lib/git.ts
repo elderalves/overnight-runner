@@ -21,6 +21,12 @@ function shortRef(repoPath: string, ref: string): string {
   return git(repoPath, ['rev-parse', '--short', ref]);
 }
 
+// Full-length SHA -- the exact `jobStartRef`/`jobEndRef` persisted for the
+// per-job Git view's diff range. See per-job-diff-semantics.md.
+function fullRef(repoPath: string, ref: string): string {
+  return git(repoPath, ['rev-parse', ref]);
+}
+
 // Creates a new branch off `base`'s live tip and checks it out into a fresh worktree.
 function worktreeAddNew(repoPath: string, worktreeDir: string, branch: string, base: string): void {
   git(repoPath, ['worktree', 'add', '-b', branch, worktreeDir, base]);
@@ -56,4 +62,13 @@ function statusPorcelain(repoPath: string): string[] {
   return output.split('\n').filter((line) => line.trim().length > 0);
 }
 
-export { currentBranch, branchExists, shortRef, worktreeAddNew, worktreeAddExisting, worktreeRemove, statusPorcelain };
+export {
+  currentBranch,
+  branchExists,
+  shortRef,
+  fullRef,
+  worktreeAddNew,
+  worktreeAddExisting,
+  worktreeRemove,
+  statusPorcelain,
+};

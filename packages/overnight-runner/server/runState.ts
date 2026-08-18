@@ -44,6 +44,8 @@ interface JobOutcomeSnapshot {
   providerUsed?: string;
   branchProduced?: string;
   commitRef?: string;
+  jobStartRef?: string;
+  jobEndRef?: string;
   atStatus: string;
   // Live-only -- patched independently of the outcome fields above by
   // patchOutcome(), and implicitly cleared whenever recordOutcome() next
@@ -90,6 +92,8 @@ class ServeState {
           currentPhase: snap.currentPhase,
           lastActivityNote: snap.lastActivityNote,
           lastActivity: snap.lastActivity,
+          jobStartRef: snap.jobStartRef,
+          jobEndRef: snap.jobEndRef,
         },
         true
       );
@@ -185,6 +189,8 @@ class ServeState {
       providerUsed: job.providerUsed,
       branchProduced: job.branchProduced,
       commitRef: job.commitRef,
+      jobStartRef: job.jobStartRef,
+      jobEndRef: job.jobEndRef,
       atStatus: job.initialStatus,
     });
   }
@@ -258,6 +264,8 @@ class ServeState {
           notes: event.job.notes,
           branchProduced: event.job.branchProduced,
           commitRef: event.job.commitRef,
+          jobStartRef: event.job.jobStartRef,
+          jobEndRef: event.job.jobEndRef,
           providerUsed: event.job.providerUsed,
           stopping: event.stopping,
           line: event.line,

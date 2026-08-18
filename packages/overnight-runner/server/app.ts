@@ -4,6 +4,7 @@ import { runRoutes } from './routes/run.ts';
 import { eventsRoutes } from './routes/events.ts';
 import { historyRoutes } from './routes/history.ts';
 import { settingsRoutes } from './routes/settings.ts';
+import { gitRoutes } from './routes/git.ts';
 import { ServeState } from './runState.ts';
 import { createStaticUi } from './staticUi.ts';
 import { migrate } from '../lib/migrate.ts';
@@ -23,7 +24,8 @@ function createApp(repoPath: string) {
     .route('/run', runRoutes(repoPath, state))
     .route('/events', eventsRoutes(state))
     .route('/runs', historyRoutes(repoPath))
-    .route('/settings', settingsRoutes(repoPath));
+    .route('/settings', settingsRoutes(repoPath))
+    .route('/git', gitRoutes(repoPath));
 
   // Static assets + SPA catch-all, mounted last -- hand-rolled, not Hono's
   // serveStatic, per server-architecture.md's "Static-asset serving".

@@ -50,7 +50,9 @@ function parseRunSummary(id: string, content: string): RunHistoryDetail {
       branchProduced: cells[4] ?? '',
       provider: cells[5] ?? '',
       commitRef: cells[6] ?? '',
-      notes: cells[7] ?? '',
+      jobStartRef: cells[7] ?? '',
+      jobEndRef: cells[8] ?? '',
+      notes: cells[9] ?? '',
     });
     i++;
   }
@@ -93,4 +95,19 @@ function readRun(repoPath: string, id: string): RunHistoryDetail | null {
   return parseRunSummary(id, fs.readFileSync(filePath, 'utf8'));
 }
 
-export { listRuns, readRun };
+export type JobRowLookup =
+  | { found: true; row: RunHistoryRow }
+  | { found: false; reason: 'run-not-found' | 'job-not-found' };
+
+// Looks up one job's persisted row within a specific run, for the per-job
+// Git routes' jobStartRef..jobEndRef range. See
+// .alves/issues/overnight-runner-git-feature/backend-git-module-contract.md.
+function findJobRow(repoPath: string, runId: string, identity: string): JobRowLookup {
+  const run = readRun(repoPath, runId);
+  if (!run) return { found: false, reason: 'run-not-found' };
+  const row = run.jobs.find((j) => j.job === identity);
+  if (!row) return { found: false, reason: 'job-not-found' };
+  return { found: true, row };
+}
+
+export { listRuns, readRun, findJobRow };

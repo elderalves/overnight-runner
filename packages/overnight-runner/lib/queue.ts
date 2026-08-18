@@ -26,6 +26,10 @@ export interface Job {
   currentPhase?: string;
   lastActivityNote?: { text: string; at: string };
   lastActivity?: { file: string; changedCount: number };
+  // Full-length start/end refs captured in this job's execution cwd -- see
+  // .alves/issues/overnight-runner-git-feature/per-job-diff-semantics.md.
+  jobStartRef?: string;
+  jobEndRef?: string;
 }
 
 // Non-recursive glob of jobs/*.md, lexicographic by filename -- see

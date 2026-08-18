@@ -35,6 +35,8 @@ function toWireJob(job: Job, inRunContext: boolean): WireJob {
     currentPhase: job.currentPhase,
     lastActivityNote: job.lastActivityNote,
     lastActivity: job.lastActivity,
+    jobStartRef: job.jobStartRef,
+    jobEndRef: job.jobEndRef,
   };
 }
 

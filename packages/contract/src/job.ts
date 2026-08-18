@@ -40,6 +40,12 @@ export interface Job {
   currentPhase?: string;
   lastActivityNote?: { text: string; at: string };
   lastActivity?: { file: string; changedCount: number };
+  // Full-length start/end refs captured in this job's execution cwd, the exact
+  // range the per-job Git view diffs -- see
+  // .alves/issues/overnight-runner-git-feature/per-job-diff-semantics.md.
+  // Absent when the job hasn't executed (this run) or never reached isolation setup.
+  jobStartRef?: string;
+  jobEndRef?: string;
 }
 
 export interface JobFields {
